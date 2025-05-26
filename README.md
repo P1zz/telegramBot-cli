@@ -165,7 +165,7 @@ telegramBot-cli edit {parameters}
 telegramBot-cli repo is under CC0 1.0.
 
 [GO_badge]: https://img.shields.io/badge/Go-00ADD8?logo=Go&logoColor=white&style=for-the-badge
-[GO_url]: https://jquery.com 
+[GO_url]: https://go.dev 
 
 [LICENSE_badge]: https://img.shields.io/npm/l/cc-md?color=blue&style=for-the-badge
 [LICENSE_url]: https://creativecommons.org/public-domain/cc0/
