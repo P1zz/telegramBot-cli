@@ -69,9 +69,14 @@ Usage:
 
 Flags:
   -c, --chatId int           Your chat ID
+  -H, --fileHasSpoiler       The file is send with hidden preview
+  -p, --filePath string      Path of the image/video to send
+  -T, --fileTimeout int      Timeout in seconds for sending a file (default 60)
   -h, --help                 help for send
-  -i, --imagePath string     Path of the image to send
+  -2, --markDownV2           Message text is parsed in markdown v2
   -m, --messageText string   Message text to send
+  -i, --pathIsImage          The path is an image to send
+  -v, --pathIsVideo          The path is a video to send
   -M, --printMessageId       Print message id of your message
   -x, --replyChatId int      Chat id you want to reply
   -y, --replyMessageId int   Message id you want to reply
