@@ -2,9 +2,13 @@
 # Brief
 A CLI tool for interacting on telegram as a bot written in golang
 
+- [Brief](#brief)
 - [Overview](#overview)
+    - [Roadmap](#roadmap)
+          - [If you like this repo star and share it!](#if-you-like-this-repo-star-and-share-it)
 - [Build](#build)
 - [Usage](#usage)
+          - [Hint: All of the functions below has ```--help``` parameter.](#hint-all-of-the-functions-below-has---help-parameter)
   - [Send](#send)
   - [Receive](#receive)
   - [Delete](#delete)
@@ -32,13 +36,13 @@ Built With:
     - [x] Reply
         - [x] Same chat
         - [x] Other chat
-    - [ ] Get input from named pipe
 - [x] Receive
     - [x] Text
     - [x] Audio/Voice
     - [x] Photo
     - [x] Files
     - [x] Receive n messages
+    - [ ] Receive messages within n time
     - [x] Receive messages continuously
     - [x] Sync messages received while offline
     - [x] Discard received while offline
@@ -48,7 +52,6 @@ Built With:
     - [x] Get the message time
         - [x] Unix
         - [x] Human Readable
-    - [ ] Redirect to named pipe
 - [x] Delete
 - [x] Edit
     - [x] Text
