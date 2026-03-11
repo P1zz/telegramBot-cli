@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
+
+var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -23,5 +27,25 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.PersistentFlags().StringP("config", "C", "config.toml", "config file")
+	cobra.OnInitialize(initConfig)
+}
 
+func initConfig() {
+
+	if viper.GetString("config") == "" {
+		viper.SetConfigFile("config.toml")
+	} else {
+		viper.SetConfigFile(viper.GetString("config"))
+	}
+
+	viper.SetConfigType("toml")
+
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			panic(fmt.Errorf("fatal: %w", err))
+		}
+	}
+
+	viper.AutomaticEnv()
 }

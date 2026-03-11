@@ -28,7 +28,7 @@ func init() {
 	receiveTextCmd.Flags().IntP("chatId", "c", 0, "ID of the chat, leave blank or set 0 if you want to listen all chats")
 	receiveTextCmd.Flags().IntP("messageCounter", "n", 0, "Numer of messages to receive, leave blank or set 0 for continuous receiving")
 	receiveTextCmd.Flags().BoolP("sync", "s", false, "Sync old messages sended while the bot was not running")
-	receiveTextCmd.Flags().BoolP("printChatId", "C", false, "Print the chat ID")
+	receiveTextCmd.Flags().BoolP("printChatId", "r", false, "Print the chat ID")
 	receiveTextCmd.Flags().BoolP("printMessageId", "M", false, "Print the message ID of each message")
 	receiveTextCmd.Flags().BoolP("printTimestampUnix", "U", false, "Print the datetime UNIX")
 	receiveTextCmd.Flags().BoolP("printTimestampHuman", "H", false, "Print the datetime human readable")
