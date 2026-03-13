@@ -69,6 +69,54 @@ func init() {
 	viper.BindPFlag("send.replyMessageID", sendCmd.Flags().Lookup("replyMessageId"))
 }
 
+func validateArgsSend(cmd *cobra.Command, args []string) error {
+
+	cfg := SendConfig{
+		token:           viper.GetString("token"),
+		chatId:          viper.GetInt("chatId"),
+		message:         viper.GetString("send.message"),
+		isMarkdownV2:    viper.GetBool("send.markdownV2"),
+		hasSpoiler:      viper.GetBool("send.hasSpoiler"),
+		getTheMessageId: viper.GetBool("send.getTheMessageId"),
+		filePath:        viper.GetString("send.filePath"),
+		fileTimeout:     viper.GetInt("send.fileTimeout"),
+		fileIsImage:     viper.GetBool("send.fileIsImage"),
+		fileIsVideo:     viper.GetBool("send.fileIsVideo"),
+		replyChatID:     viper.GetInt("send.replyChatID"),
+		replyMessageID:  viper.GetInt("send.replyMessageID"),
+	}
+
+	//Validate the token
+	if cfg.token == "" {
+		return fmt.Errorf("No token provided")
+	}
+
+	//Validate the chat ID
+	if cfg.chatId == 0 || len(strconv.Itoa(cfg.chatId)) != 9 {
+		return fmt.Errorf("Wrong chat ID provided")
+	}
+
+	//There should be something to send
+	if cfg.message == "" && (!cfg.fileIsImage && !cfg.fileIsVideo) {
+		return fmt.Errorf("You should provide at least a message or a file")
+	}
+
+	//If there is a file to send
+	if cfg.fileIsImage || cfg.fileIsVideo {
+		//Check that are not both a video and an image
+		if cfg.fileIsImage && cfg.fileIsVideo {
+			return fmt.Errorf("Images and videos are mutually exclusive")
+			//Check the file exist
+		} else if _, err := os.Stat(cfg.filePath); errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("Wrong path provided")
+		}
+	}
+
+	//Send config into the context
+	cmd.SetContext(context.WithValue(cmd.Context(), SendConfig{}, cfg))
+	return nil
+}
+
 func sendMessage(cmd *cobra.Command, args []string) error {
 
 	cfg := cmd.Context().Value(SendConfig{}).(SendConfig)
@@ -193,53 +241,5 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 	//Close context
 	bgCtx.Done()
 
-	return nil
-}
-
-func validateArgsSend(cmd *cobra.Command, args []string) error {
-
-	cfg := SendConfig{
-		token:           viper.GetString("token"),
-		chatId:          viper.GetInt("chatId"),
-		message:         viper.GetString("send.message"),
-		isMarkdownV2:    viper.GetBool("send.markdownV2"),
-		hasSpoiler:      viper.GetBool("send.hasSpoiler"),
-		getTheMessageId: viper.GetBool("send.getTheMessageId"),
-		filePath:        viper.GetString("send.filePath"),
-		fileTimeout:     viper.GetInt("send.fileTimeout"),
-		fileIsImage:     viper.GetBool("send.fileIsImage"),
-		fileIsVideo:     viper.GetBool("send.fileIsVideo"),
-		replyChatID:     viper.GetInt("send.replyChatID"),
-		replyMessageID:  viper.GetInt("send.replyMessageID"),
-	}
-
-	//Validate the token
-	if cfg.token == "" {
-		return fmt.Errorf("No token provided")
-	}
-
-	//Validate the chat ID
-	if cfg.chatId == 0 || len(strconv.Itoa(cfg.chatId)) != 9 {
-		return fmt.Errorf("Wrong chat ID provided")
-	}
-
-	//There should be something to send
-	if cfg.message == "" && (!cfg.fileIsImage && !cfg.fileIsVideo) {
-		return fmt.Errorf("You should provide at least a message or a file")
-	}
-
-	//If there is a file to send
-	if cfg.fileIsImage || cfg.fileIsVideo {
-		//Check that are not both a video and an image
-		if cfg.fileIsImage && cfg.fileIsVideo {
-			return fmt.Errorf("Images and videos are mutually exclusive")
-			//Check the file exist
-		} else if _, err := os.Stat(cfg.filePath); errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("Wrong path provided")
-		}
-	}
-
-	//Send config into the context
-	cmd.SetContext(context.WithValue(cmd.Context(), SendConfig{}, cfg))
 	return nil
 }
