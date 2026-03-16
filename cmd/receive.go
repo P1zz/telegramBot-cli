@@ -230,6 +230,8 @@ func receiveMessage(cmd *cobra.Command, args []string) error {
 			//Pass the param from the default handler + the context cancellation function
 			defaultHandler(ctx, b, update, cancel)
 		}),
+		//Redirect bot library/API errors
+		bot.WithErrorsHandler(nil),
 	}
 
 	//Create the bot

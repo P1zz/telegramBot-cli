@@ -152,11 +152,16 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 	}
 
 	//Send a file
-	if cfg.filePath != "" {
+	if cfg.fileIsImage || cfg.fileIsVideo {
 		//Open image
-		file, err := os.Open(cfg.filePath)
-		if err != nil {
-			return err
+		var file *os.File
+		if cfg.filePath != "" {
+			file, err = os.Open(cfg.filePath)
+			if err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("The path to the file was empty")
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.fileTimeout)*time.Second)
@@ -206,7 +211,6 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 		}
 
 	} else { //Send a message
-
 		parameters := &bot.SendMessageParams{
 			ChatID:          cfg.chatId,
 			Text:            cfg.message,
@@ -216,6 +220,11 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 
 		//Send the message
 		rtrn, err = tgBot.SendMessage(bgCtx, parameters)
+
+	}
+
+	if rtrn == nil {
+		return fmt.Errorf("Nothing has been sended...")
 	}
 
 	//Check for errors

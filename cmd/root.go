@@ -32,7 +32,6 @@ func init() {
 }
 
 func initConfig() {
-
 	if viper.GetString("config") == "" {
 		viper.SetConfigFile("config.toml")
 	} else {
