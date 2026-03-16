@@ -19,7 +19,7 @@ type SendConfig struct {
 	chatId          int
 	message         string
 	isMarkdownV2    bool
-	hasSpoiler      bool
+	fileHasSpoiler  bool
 	getTheMessageId bool
 	filePath        string
 	fileTimeout     int
@@ -49,7 +49,7 @@ func init() {
 	sendCmd.Flags().IntP("fileTimeout", "T", 60, "Timeout in seconds for sending a file")
 	sendCmd.Flags().BoolP("pathIsImage", "i", false, "The path is an image to send")
 	sendCmd.Flags().BoolP("pathIsVideo", "v", false, "The path is a video to send")
-	sendCmd.Flags().BoolP("hasSpoiler", "H", false, "The file is send with hidden preview")
+	sendCmd.Flags().BoolP("fileHasSpoiler", "H", false, "The file is send with hidden preview")
 	sendCmd.Flags().IntP("replyChatId", "x", 0, "Chat id you want to reply")
 	sendCmd.Flags().IntP("replyMessageId", "y", 0, "Message id you want to reply")
 	sendCmd.Flags().BoolP("markDownV2", "2", false, "Message text is parsed in markdown v2")
@@ -59,7 +59,7 @@ func init() {
 	viper.BindPFlag("chatId", sendCmd.Flags().Lookup("chatId"))
 	viper.BindPFlag("send.message", sendCmd.Flags().Lookup("messageText"))
 	viper.BindPFlag("send.markdownV2", sendCmd.Flags().Lookup("markDownV2"))
-	viper.BindPFlag("send.hasSpoiler", sendCmd.Flags().Lookup("hasSpoiler"))
+	viper.BindPFlag("send.fileHasSpoiler", sendCmd.Flags().Lookup("fileHasSpoiler"))
 	viper.BindPFlag("send.getTheMessageId", sendCmd.Flags().Lookup("printMessageId"))
 	viper.BindPFlag("send.filePath", sendCmd.Flags().Lookup("filePath"))
 	viper.BindPFlag("send.fileTimeout", sendCmd.Flags().Lookup("fileTimeout"))
@@ -76,7 +76,7 @@ func validateArgsSend(cmd *cobra.Command, args []string) error {
 		chatId:          viper.GetInt("chatId"),
 		message:         viper.GetString("send.message"),
 		isMarkdownV2:    viper.GetBool("send.markdownV2"),
-		hasSpoiler:      viper.GetBool("send.hasSpoiler"),
+		fileHasSpoiler:  viper.GetBool("send.fileHasSpoiler"),
 		getTheMessageId: viper.GetBool("send.getTheMessageId"),
 		filePath:        viper.GetString("send.filePath"),
 		fileTimeout:     viper.GetInt("send.fileTimeout"),
@@ -170,7 +170,7 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 				Caption:         cfg.message,
 				ReplyParameters: replyParameters,
 				ParseMode:       parsing,
-				HasSpoiler:      cfg.hasSpoiler,
+				HasSpoiler:      cfg.fileHasSpoiler,
 			}
 
 			//Send image
@@ -190,7 +190,7 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 				Caption:         cfg.message,
 				ReplyParameters: replyParameters,
 				ParseMode:       parsing,
-				HasSpoiler:      cfg.hasSpoiler,
+				HasSpoiler:      cfg.fileHasSpoiler,
 			}
 
 			//Send video
@@ -207,21 +207,11 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 
 	} else { //Send a message
 
-		entities := []models.MessageEntity{}
-		if cfg.hasSpoiler {
-			entities = []models.MessageEntity{{
-				Type:   models.MessageEntityTypeSpoiler,
-				Offset: 0,
-				Length: len(cfg.message),
-			}}
-		}
-
 		parameters := &bot.SendMessageParams{
 			ChatID:          cfg.chatId,
 			Text:            cfg.message,
 			ReplyParameters: replyParameters,
 			ParseMode:       parsing,
-			Entities:        entities,
 		}
 
 		//Send the message
@@ -235,7 +225,7 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 
 	//If requested print messsage ID
 	if cfg.getTheMessageId {
-		fmt.Printf("CHAT_ID:%d\n", rtrn.ID)
+		fmt.Printf("MESSAGE_ID:%d\n", rtrn.ID)
 	}
 
 	//Close context

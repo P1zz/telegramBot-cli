@@ -1,4 +1,4 @@
-module telegramBot-cli
+module telegramBot
 
 go 1.24 //Minimum required version for build or run
 

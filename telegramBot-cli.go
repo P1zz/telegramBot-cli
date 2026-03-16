@@ -1,6 +1,6 @@
 package main
 
-import "telegramBot-cli/cmd"
+import "telegramBot/cmd"
 
 func main() {
 	cmd.Execute()

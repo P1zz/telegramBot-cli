@@ -83,12 +83,12 @@ func validateArgsReceive(cmd *cobra.Command, args []string) error {
 
 	//Validate the token
 	if cfg.token == "" {
-		return fmt.Errorf("no token provided")
+		return fmt.Errorf("No token provided")
 	}
 
 	//Validate the chat ID
 	if cfg.chatId != 0 && len(strconv.Itoa(cfg.chatId)) != 9 {
-		return fmt.Errorf("wrong chat ID provided")
+		return fmt.Errorf("Wrong chat ID provided")
 	}
 
 	//No need to validate the messageCounter, sync, printChatId, printMessageId, printTimestampUnix, printTimestampHuman

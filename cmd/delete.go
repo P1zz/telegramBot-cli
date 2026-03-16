@@ -7,7 +7,14 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
+
+type DeleteConfig struct {
+	token     string
+	chatId    int
+	messageId int
+}
 
 var deleteTextCmd = &cobra.Command{
 	Use:   "delete",
@@ -25,26 +32,55 @@ func init() {
 	deleteTextCmd.Flags().StringP("token", "t", "", "Token from bot fathers")
 	deleteTextCmd.Flags().IntP("chatId", "c", 0, "ID of the chat, leave blank or set 0 if you want to listen all chats")
 	deleteTextCmd.Flags().IntP("messageId", "i", 0, "ID of the message you wan't to delete")
+
+	viper.BindPFlag("token", deleteTextCmd.Flags().Lookup("token"))
+	viper.BindPFlag("chatId", deleteTextCmd.Flags().Lookup("chatId"))
+	viper.BindPFlag("delete.messageId", deleteTextCmd.Flags().Lookup("messageId"))
+}
+
+func validateArgsDelete(cmd *cobra.Command, args []string) error {
+
+	cfg := DeleteConfig{
+		token:     viper.GetString("token"),
+		chatId:    viper.GetInt("chatId"),
+		messageId: viper.GetInt("delete.messageId"),
+	}
+
+	//Validate the token
+	if cfg.token == "" {
+		return fmt.Errorf("No token provided")
+	}
+
+	//Validate the chat ID
+	if cfg.chatId != 0 && len(strconv.Itoa(cfg.chatId)) != 9 {
+		return fmt.Errorf("Wrong chat ID provided")
+	}
+
+	//No need to validate the message ID
+
+	//Send config into the context
+	cmd.SetContext(context.WithValue(cmd.Context(), DeleteConfig{}, cfg))
+
+	return nil
 }
 
 func deleteMessage(cmd *cobra.Command, args []string) error {
-	token, _ := cmd.Flags().GetString("token")
-	chatId, _ := cmd.Flags().GetInt("chatId")
-	messageId, _ := cmd.Flags().GetInt("messageId")
+
+	cfg := cmd.Context().Value(DeleteConfig{}).(DeleteConfig)
 
 	//Create a context
 	bgCtx := context.Background()
 
 	//Create the bot
-	tgBot, err := bot.New(token)
+	tgBot, err := bot.New(cfg.token)
 	if err != nil {
 		return err
 	}
 
 	//Populate parameters
 	parameters := &bot.DeleteMessageParams{
-		ChatID:    chatId,
-		MessageID: messageId,
+		ChatID:    cfg.chatId,
+		MessageID: cfg.messageId,
 	}
 
 	//Delete message
@@ -55,24 +91,6 @@ func deleteMessage(cmd *cobra.Command, args []string) error {
 
 	//Close context
 	bgCtx.Done()
-
-	return nil
-}
-
-func validateArgsDelete(cmd *cobra.Command, args []string) error {
-	//Validate the token
-	token, _ := cmd.Flags().GetString("token")
-	if token == "" {
-		return fmt.Errorf("no token provided")
-	}
-
-	//Validate the chat ID
-	chatId, _ := cmd.Flags().GetInt("chatId")
-	if chatId != 0 && len(strconv.Itoa(chatId)) != 9 {
-		return fmt.Errorf("wrong chat ID provided")
-	}
-
-	//No need to validate the message ID
 
 	return nil
 }

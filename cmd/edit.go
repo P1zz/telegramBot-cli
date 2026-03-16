@@ -7,7 +7,15 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
+
+type EditConfig struct {
+	token        string
+	chatId       int
+	newMessage   string
+	oldMessageId int
+}
 
 var editTextCmd = &cobra.Command{
 	Use:   "edit",
@@ -24,30 +32,65 @@ func init() {
 
 	editTextCmd.Flags().StringP("token", "t", "", "Token from bot fathers")
 	editTextCmd.Flags().IntP("chatId", "c", 0, "ID of the chat, leave blank or set 0 if you want to listen all chats")
-	editTextCmd.Flags().IntP("messageId", "i", 0, "ID of the message you wan't to edit")
-	editTextCmd.Flags().StringP("messageText", "m", "", "Text of the new message")
+	editTextCmd.Flags().IntP("oldMessageId", "i", 0, "ID of the message you wan't to edit")
+	editTextCmd.Flags().StringP("newMessage", "m", "", "Text of the new message")
+
+	viper.BindPFlag("token", editTextCmd.Flags().Lookup("token"))
+	viper.BindPFlag("chatId", editTextCmd.Flags().Lookup("chatId"))
+	viper.BindPFlag("edit.newMessage", editTextCmd.Flags().Lookup("newMessage"))
+	viper.BindPFlag("edit.oldMessageId", editTextCmd.Flags().Lookup("oldMessageId"))
+}
+
+func validateArgsEdit(cmd *cobra.Command, args []string) error {
+
+	cfg := EditConfig{
+		token:        viper.GetString("token"),
+		chatId:       viper.GetInt("chatId"),
+		newMessage:   viper.GetString("edit.newMessage"),
+		oldMessageId: viper.GetInt("edit.oldMessageId"),
+	}
+
+	//Validate the token
+	if cfg.token == "" {
+		return fmt.Errorf("No token provided")
+	}
+
+	//Validate the chat ID
+	if cfg.chatId != 0 && len(strconv.Itoa(cfg.chatId)) != 9 {
+		return fmt.Errorf("Wrong chat ID provided")
+	}
+
+	//Validate the text
+	if cfg.newMessage == "" {
+		return fmt.Errorf("New message not provided")
+	}
+
+	//No need to validate the message ID
+
+	//Send config into the context
+	cmd.SetContext(context.WithValue(cmd.Context(), EditConfig{}, cfg))
+
+	return nil
 }
 
 func editMessage(cmd *cobra.Command, args []string) error {
-	token, _ := cmd.Flags().GetString("token")
-	chatId, _ := cmd.Flags().GetInt("chatId")
-	messageId, _ := cmd.Flags().GetInt("messageId")
-	message, _ := cmd.Flags().GetString("messageText")
+
+	cfg := cmd.Context().Value(EditConfig{}).(EditConfig)
 
 	//Create a context
 	bgCtx := context.Background()
 
 	//Create the bot
-	tgBot, err := bot.New(token)
+	tgBot, err := bot.New(cfg.token)
 	if err != nil {
 		return err
 	}
 
 	//Populate parameters
 	parameters := &bot.EditMessageTextParams{
-		ChatID:    chatId,
-		MessageID: messageId,
-		Text:      message,
+		ChatID:    cfg.chatId,
+		MessageID: cfg.oldMessageId,
+		Text:      cfg.newMessage,
 	}
 
 	//Edit message
@@ -58,30 +101,6 @@ func editMessage(cmd *cobra.Command, args []string) error {
 
 	//Close context
 	bgCtx.Done()
-
-	return nil
-}
-
-func validateArgsEdit(cmd *cobra.Command, args []string) error {
-	//Validate the token
-	token, _ := cmd.Flags().GetString("token")
-	if token == "" {
-		return fmt.Errorf("no token provided")
-	}
-
-	//Validate the chat ID
-	chatId, _ := cmd.Flags().GetInt("chatId")
-	if chatId != 0 && len(strconv.Itoa(chatId)) != 9 {
-		return fmt.Errorf("wrong chat ID provided")
-	}
-
-	//Validate the text
-	text, _ := cmd.Flags().GetString("messageText")
-	if text == "" {
-		return fmt.Errorf("no message provided")
-	}
-
-	//No need to validate the message ID
 
 	return nil
 }

@@ -1,5 +1,4 @@
 [![Telegram][TELEGRAM_badge]][TELEGRAM_url] [![Bash][BASH_badge]][BASH_URL] [![GO][GO_badge]][GO_url] [![License CC0][LICENSE_badge]][LICENSE_url]
-<br><br>
 
 # Brief
 A CLI tool for interacting on telegram as a bot written in golang
@@ -18,20 +17,17 @@ Built With:
 * [Telegram library](https://github.com/go-telegram/bot) for interacting with the API.
 * [Cobra framework](https://github.com/spf13/cobra) to manage CLI inputs.
 * [Viper framework](https://github.com/spf13/viper) to manage config.
-<br><br>
 
 # Build
 ```go
 go build telegramBot-cli.go
 ```
-<br><br>
 
 # Usage
 Hint: All of the commands has ```--help``` parameter.
-```go
-telegramBot-cli { send | receive | edit | delete }  parameters
+```bash
+telegramBot-cli [ send | receive | edit | delete ]  parameters...
 ```
-<br><br>
 
 # Roadmap
 - [x] Send
@@ -66,9 +62,9 @@ telegramBot-cli { send | receive | edit | delete }  parameters
         - [x] Unix
         - [x] Human Readable
 - [x] Delete
+    - [x]  With message Id
 - [x] Edit
     - [x] Text
-<br><br>
 
 # License
 telegramBot-cli repo is under CC0 1.0.
