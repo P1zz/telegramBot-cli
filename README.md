@@ -7,6 +7,7 @@ A CLI tool for interacting on telegram as a bot written in golang
 - [Overview](#overview)
 - [Build](#build)
 - [Usage](#usage)
+- [Template config](#template-config)
 - [Roadmap](#roadmap)
 - [License](#license)
 
@@ -28,6 +29,44 @@ Hint: All of the commands has ```--help``` parameter.
 ```bash
 telegramBot-cli [ send | receive | edit | delete ]  parameters...
 ```
+# Template config
+The default path is ./ and the name is config.toml but you can specify both later.
+```toml
+token = "YourTelegramBotToken"
+chatId = 1234567890
+
+[send]
+message = "Message"
+markdownV2 = false
+fileHasSpoiler = false
+getTheMessageId = false
+filePath = "path/to/image.jpg"
+fileTimeout	= 10 #Timeout in seconds for sending a file
+fileIsImage	= false
+fileIsVideo	= false
+replyChatID	= 0
+replyMessageID = 0
+
+[receive]
+messageCounter = 0 #Numer of messages to receive, leave blank or set 0 for continuous receiving 
+sync = false #Sync old messages sended while the bot was not running
+printChatId = true
+printMessageId = true
+#Mutually exclusive
+printTimestampUnix = true
+printTimestampHuman = false
+#URLs to get the actual received files
+printPhotoUrl = false
+printFileUrl = false
+printAudioUrl = false
+
+[edit]
+oldMessageId = 123
+newMessage = "NewMessage!"
+
+[delete]
+messageId = 123
+```
 
 # Roadmap
 - [x] Send
@@ -35,6 +74,8 @@ telegramBot-cli [ send | receive | edit | delete ]  parameters...
         - [x] With markdown V2
         - [x] Print the ID of the message
         - [x] With spoiler
+        - [ ] Without ringtone sound
+        - [ ] Private message (Not forwardable)
     - [x] Image
         - [x] With spoiler
     - [x] Video
@@ -50,6 +91,7 @@ telegramBot-cli [ send | receive | edit | delete ]  parameters...
     - [x] Audio/Voice
     - [x] Photo
     - [x] Files
+    - [ ] User defined separator
     - [x] Receive n messages
     - [ ] Receive messages within n time
     - [x] Receive messages continuously
@@ -65,6 +107,7 @@ telegramBot-cli [ send | receive | edit | delete ]  parameters...
     - [x]  With message Id
 - [x] Edit
     - [x] Text
+- [ ] Generate a template config
 
 # License
 telegramBot-cli repo is under CC0 1.0.
