@@ -231,7 +231,7 @@ func receiveMessage(cmd *cobra.Command, args []string) error {
 			defaultHandler(ctx, b, update, cancel)
 		}),
 		//Redirect bot library/API errors
-		bot.WithErrorsHandler(nil),
+		bot.WithErrorsHandler(func(err error) {}),
 	}
 
 	//Create the bot
