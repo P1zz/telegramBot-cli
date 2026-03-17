@@ -15,7 +15,8 @@ import (
 type ReceiveConfig struct {
 	token               string
 	chatId              int
-	messageCounter      int
+	counter             int
+	timeout             int
 	sync                bool
 	printChatId         bool
 	printMessageId      bool
@@ -41,7 +42,8 @@ func init() {
 
 	receiveTextCmd.Flags().StringP("token", "t", "", "Token from bot fathers")
 	receiveTextCmd.Flags().IntP("chatId", "c", 0, "ID of the chat, leave blank or set 0 if you want to listen all chats")
-	receiveTextCmd.Flags().IntP("messageCounter", "n", 0, "Numer of messages to receive, leave blank or set 0 for continuous receiving")
+	receiveTextCmd.Flags().IntP("counter", "n", 0, "Numer of messages to receive, leave blank or set 0 for continuous receiving")
+	receiveTextCmd.Flags().IntP("timeout", "w", 0, "Time in second of the receive timeout, leave blank or set 0 for continuous receiving")
 	//TODO document cron logic for sync
 	receiveTextCmd.Flags().BoolP("sync", "s", false, "Sync old messages sended while the bot was not running")
 	receiveTextCmd.Flags().BoolP("printChatId", "r", false, "Print the chat ID")
@@ -54,7 +56,8 @@ func init() {
 
 	viper.BindPFlag("token", receiveTextCmd.Flags().Lookup("token"))
 	viper.BindPFlag("chatId", receiveTextCmd.Flags().Lookup("chatId"))
-	viper.BindPFlag("receive.messageCounter", receiveTextCmd.Flags().Lookup("messageCounter"))
+	viper.BindPFlag("receive.counter", receiveTextCmd.Flags().Lookup("counter"))
+	viper.BindPFlag("receive.timeout", receiveTextCmd.Flags().Lookup("timeout"))
 	viper.BindPFlag("receive.sync", receiveTextCmd.Flags().Lookup("sync"))
 	viper.BindPFlag("receive.printChatId", receiveTextCmd.Flags().Lookup("printChatId"))
 	viper.BindPFlag("receive.printMessageId", receiveTextCmd.Flags().Lookup("printMessageId"))
@@ -70,7 +73,8 @@ func validateArgsReceive(cmd *cobra.Command, args []string) error {
 	cfg := ReceiveConfig{
 		token:               viper.GetString("token"),
 		chatId:              viper.GetInt("chatId"),
-		messageCounter:      viper.GetInt("receive.messageCounter"),
+		counter:             viper.GetInt("receive.counter"),
+		timeout:             viper.GetInt("receive.timeout"),
 		sync:                viper.GetBool("receive.sync"),
 		printChatId:         viper.GetBool("receive.printChatId"),
 		printMessageId:      viper.GetBool("receive.printMessageId"),
@@ -105,6 +109,13 @@ func receiveMessage(cmd *cobra.Command, args []string) error {
 
 	//Create a context
 	bgCtx, cancel := context.WithCancel(context.Background())
+
+	//If required setup timeout timer
+	if cfg.timeout != 0 {
+		time.AfterFunc(time.Duration(cfg.timeout)*time.Second, func() {
+			cancel()
+		})
+	}
 
 	//Create the handler
 	defaultHandler := func(ctx context.Context, tgBot *bot.Bot, update *models.Update, cancelFunc context.CancelFunc) {
@@ -210,12 +221,12 @@ func receiveMessage(cmd *cobra.Command, args []string) error {
 		fmt.Println(outputMessage)
 
 		//Increase the counter only if user want a cuntdown
-		if cfg.messageCounter != 0 {
+		if cfg.counter != 0 {
 			counter++
 		}
 
 		//Check if counter has reach the user value
-		if counter >= cfg.messageCounter && cfg.messageCounter != 0 {
+		if counter >= cfg.counter && cfg.counter != 0 {
 			//Close the bot
 			tgBot.Close(ctx)
 

@@ -48,7 +48,8 @@ replyChatID	= 0
 replyMessageID = 0
 
 [receive]
-messageCounter = 0 #Numer of messages to receive, leave blank or set 0 for continuous receiving 
+counter = 0 #Numer of messages to receive, leave blank or set 0 for continuous receiving 
+timeout = 0 #Time in second of the receive timeout, leave blank or set 0 for continuous receiving 
 sync = false #Sync old messages sended while the bot was not running
 printChatId = true
 printMessageId = true
@@ -93,7 +94,7 @@ messageId = 123
     - [x] Files
     - [ ] User defined separator
     - [x] Receive n messages
-    - [ ] Receive messages within n time
+    - [x] Receive messages within a timeout
     - [x] Receive messages continuously
     - [x] Sync messages received while offline
     - [x] Discard received while offline

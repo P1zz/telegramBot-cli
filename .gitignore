@@ -1,4 +1,2 @@
-telegramBot
-telegramBot-cli
 .vscode/
-config.toml
+build/
