@@ -20,7 +20,8 @@ var rootCmd = &cobra.Command{
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "Can't execute root command.\n")
+		os.Exit(2)
 	}
 }
 
@@ -44,7 +45,7 @@ func initConfig() {
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			fmt.Printf("Can't find config file: %s\n", err.Error())
+			fmt.Fprintf(os.Stderr, "Can't find config file: %s\n", err.Error())
 			os.Exit(1)
 		}
 	}

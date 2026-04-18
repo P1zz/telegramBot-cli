@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/go-telegram/bot"
@@ -24,7 +25,7 @@ var editTextCmd = &cobra.Command{
 	//Link the validation function to the validateArgsEdit
 	Args: validateArgsEdit,
 	//Link the function with the capabilities of returning an error
-	RunE: editMessage,
+	Run: editMessage,
 }
 
 func init() {
@@ -73,7 +74,7 @@ func validateArgsEdit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func editMessage(cmd *cobra.Command, args []string) error {
+func editMessage(cmd *cobra.Command, args []string) {
 
 	cfg := cmd.Context().Value(EditConfig{}).(EditConfig)
 
@@ -83,7 +84,8 @@ func editMessage(cmd *cobra.Command, args []string) error {
 	//Create the bot
 	tgBot, err := bot.New(cfg.token)
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "Error while creating the bot instance\n")
+		os.Exit(1)
 	}
 
 	//Populate parameters
@@ -96,11 +98,10 @@ func editMessage(cmd *cobra.Command, args []string) error {
 	//Edit message
 	_, err = tgBot.EditMessageText(bgCtx, parameters)
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "Error while editing text message\n")
+		os.Exit(2)
 	}
 
 	//Close context
 	bgCtx.Done()
-
-	return nil
 }

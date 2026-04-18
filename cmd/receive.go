@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -34,7 +35,7 @@ var receiveTextCmd = &cobra.Command{
 	//Link the validation function to the receiveTextCmd
 	Args: validateArgsReceive,
 	//Link the function with the capabilities of returning an error
-	RunE: receiveMessage,
+	Run: receiveMessage,
 }
 
 func init() {
@@ -103,7 +104,7 @@ func validateArgsReceive(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func receiveMessage(cmd *cobra.Command, args []string) error {
+func receiveMessage(cmd *cobra.Command, args []string) {
 
 	cfg := cmd.Context().Value(ReceiveConfig{}).(ReceiveConfig)
 
@@ -248,7 +249,8 @@ func receiveMessage(cmd *cobra.Command, args []string) error {
 	//Create the bot
 	tgBot, err := bot.New(cfg.token, opts...)
 	if nil != err {
-		return (err)
+		fmt.Fprintf(os.Stderr, "Error while creating the bot instance\n")
+		os.Exit(1)
 	}
 
 	//Start the bot
@@ -256,6 +258,4 @@ func receiveMessage(cmd *cobra.Command, args []string) error {
 
 	//Close context
 	bgCtx.Done()
-
-	return nil
 }

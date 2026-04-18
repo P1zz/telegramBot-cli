@@ -35,7 +35,7 @@ var sendCmd = &cobra.Command{
 	Long:  "Send a message in a chat as bot with text or an image",
 	Args:  validateArgsSend,
 	//Link the validation function to the sendTextCmd
-	RunE: sendMessage,
+	Run: sendMessage,
 	//Link the function with the capabilities of returning an error
 }
 
@@ -117,7 +117,7 @@ func validateArgsSend(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func sendMessage(cmd *cobra.Command, args []string) error {
+func sendMessage(cmd *cobra.Command, args []string) {
 
 	cfg := cmd.Context().Value(SendConfig{}).(SendConfig)
 
@@ -127,7 +127,8 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 	//Create the bot
 	tgBot, err := bot.New(cfg.token)
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "Error while creating the bot instance\n")
+		os.Exit(1)
 	}
 
 	//Create the return message structure
@@ -158,10 +159,12 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 		if cfg.filePath != "" {
 			file, err = os.Open(cfg.filePath)
 			if err != nil {
-				return err
+				fmt.Fprintf(os.Stderr, "Can't open the file.\n")
+				os.Exit(2)
 			}
 		} else {
-			return fmt.Errorf("The path to the file was empty")
+			fmt.Fprintf(os.Stderr, "The path to the file was empty.\n")
+			os.Exit(2)
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.fileTimeout)*time.Second)
@@ -184,9 +187,11 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 			//Check for errors
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
-					return fmt.Errorf("Send file request exceeded timeout of %d seconds, try a smaller file or increase -T", cfg.fileTimeout)
+					fmt.Fprintf(os.Stderr, "Send file request exceeded timeout of %d seconds, try a smaller file or increase -T.\n", cfg.fileTimeout)
+					os.Exit(3)
 				}
-				return err
+				fmt.Fprintf(os.Stderr, "Error while sending photo.\n")
+				os.Exit(4)
 			}
 		} else if cfg.fileIsVideo {
 			parameters := &bot.SendVideoParams{
@@ -204,9 +209,11 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 			//Check for errors
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
-					return fmt.Errorf("Send file request exceeded timeout of %d seconds, try a smaller file or increase -T", cfg.fileTimeout)
+					fmt.Fprintf(os.Stderr, "Send file request exceeded %d timeout of seconds, try a smaller file or increase -T.\n", cfg.fileTimeout)
+					os.Exit(5)
 				}
-				return err
+				fmt.Fprintf(os.Stderr, "Error while sending video.\n")
+				os.Exit(6)
 			}
 		}
 
@@ -221,15 +228,16 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 		//Send the message
 		rtrn, err = tgBot.SendMessage(bgCtx, parameters)
 
+		//Check for errors
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error while sending the text message.\n")
+			os.Exit(7)
+		}
 	}
 
 	if rtrn == nil {
-		return fmt.Errorf("Nothing has been sended...")
-	}
-
-	//Check for errors
-	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "Nothing has been sended...\n")
+		os.Exit(8)
 	}
 
 	//If requested print messsage ID
@@ -239,6 +247,4 @@ func sendMessage(cmd *cobra.Command, args []string) error {
 
 	//Close context
 	bgCtx.Done()
-
-	return nil
 }

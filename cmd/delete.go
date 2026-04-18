@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/go-telegram/bot"
@@ -23,7 +24,7 @@ var deleteTextCmd = &cobra.Command{
 	//Link the validation function to the validateArgsDelete
 	Args: validateArgsDelete,
 	//Link the function with the capabilities of returning an error
-	RunE: deleteMessage,
+	Run: deleteMessage,
 }
 
 func init() {
@@ -64,7 +65,7 @@ func validateArgsDelete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func deleteMessage(cmd *cobra.Command, args []string) error {
+func deleteMessage(cmd *cobra.Command, args []string) {
 
 	cfg := cmd.Context().Value(DeleteConfig{}).(DeleteConfig)
 
@@ -74,7 +75,8 @@ func deleteMessage(cmd *cobra.Command, args []string) error {
 	//Create the bot
 	tgBot, err := bot.New(cfg.token)
 	if err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "Error while creating the bot instance\n")
+		os.Exit(1)
 	}
 
 	//Populate parameters
@@ -86,11 +88,10 @@ func deleteMessage(cmd *cobra.Command, args []string) error {
 	//Delete message
 	res, err := tgBot.DeleteMessage(bgCtx, parameters)
 	if !res && err != nil {
-		return err
+		fmt.Fprintf(os.Stderr, "Error while deleting text message\n")
+		os.Exit(2)
 	}
 
 	//Close context
 	bgCtx.Done()
-
-	return nil
 }
