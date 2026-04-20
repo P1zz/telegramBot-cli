@@ -1,12 +1,12 @@
 module telegramBot
 
-go 1.24 //Minimum required version for build or run
+go 1.26 //Minimum required version for build or run
 
-toolchain go1.24.0 //Actual version developer use to develop and build
+toolchain go1.26.2 //Actual version developer use to develop and build
 
 require (
-	github.com/go-telegram/bot v1.19.0
-	github.com/spf13/cobra v1.8.1
+	github.com/go-telegram/bot v1.20.0
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 )
 
