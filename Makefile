@@ -41,24 +41,24 @@ generate-conf: ## Generate the config template
 build-linux-amd64: ## Build for linux-amd64
 	GOARCH=$(AMD64) GOOS=$(LINUX) CGO_ENABLED=0 \
 	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(AMD64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(AMD64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(AMD64)_hash
+	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(AMD64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(AMD64)_hash.txt
 
 build-linux-arm64: ## Build for linux-arm64
 	GOARCH=$(ARM64) GOOS=$(LINUX) CGO_ENABLED=0 \
 	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(ARM64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(ARM64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(ARM64)_hash
+	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(ARM64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(ARM64)_hash.txt
 
 build-win-amd64: ## Build for windows-amd64
 	GOARCH=$(AMD64) GOOS=$(WIN) CGO_ENABLED=0 \
 	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(WIN)_$(AMD64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(WIN)_$(AMD64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(WIN)_$(AMD64)_hash
+	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(WIN)_$(AMD64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(WIN)_$(AMD64)_hash.txt
 
 build-macos-amd64: ## Build for macos-amd64
 	GOARCH=$(AMD64) GOOS=$(MAC) CGO_ENABLED=0 \
 	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(AMD64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(AMD64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(AMD64)_hash
+	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(AMD64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(AMD64)_hash.txt
 
 build-macos-arm64: ## Build for macos-arm64
 	GOARCH=$(ARM64) GOOS=$(MAC) CGO_ENABLED=0 \
 	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(ARM64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(ARM64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(ARM64)_hash
+	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(ARM64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(ARM64)_hash.txt
