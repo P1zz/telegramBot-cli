@@ -10,6 +10,7 @@ import (
 	"time"
 
 	clioutput "github.com/P1zz/telegramBot-cli/internal/output"
+	telegramapi "github.com/P1zz/telegramBot-cli/internal/telegram"
 	"github.com/P1zz/telegramBot-cli/internal/validation"
 
 	"github.com/go-telegram/bot"
@@ -39,7 +40,13 @@ var receiveCmd = &cobra.Command{
 	Short: "Receive Telegram messages",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		applyLegacyFlags(cmd, map[string]string{"printChatId": "receive.printChatId", "printMessageId": "receive.printMessageId", "printPhotoUrl": "receive.printPhotoPath", "printFileUrl": "receive.printFilePath", "printAudioUrl": "receive.printAudioPath"})
 		cfg := loadReceiveConfig()
+		var err error
+		cfg.Token, err = resolvedToken()
+		if err != nil {
+			return err
+		}
 		if err := cfg.Validate(); err != nil {
 			return err
 		}
@@ -61,6 +68,10 @@ func init() {
 	flags.Bool("print-file-path", false, "include Telegram's document file path")
 	flags.Bool("print-audio-path", false, "include Telegram's audio or voice file path")
 	flags.StringP("output", "o", clioutput.FormatText, "output format: text or jsonl")
+	for _, old := range []string{"printChatId", "printMessageId", "printPhotoUrl", "printFileUrl", "printAudioUrl"} {
+		flags.Bool(old, false, "deprecated compatibility flag")
+		_ = flags.MarkDeprecated(old, "use the kebab-case path flag shown in --help")
+	}
 
 	bindFlag("receive.counter", receiveCmd, "counter")
 	bindFlag("receive.timeout", receiveCmd, "timeout")
@@ -140,10 +151,13 @@ func receiveMessages(parent context.Context, cfg ReceiveConfig, stdout, stderr i
 			}
 		}),
 	}
+	if !cfg.Sync {
+		options = append(options, bot.WithInitialOffset(-1))
+	}
 
-	tgBot, err := bot.New(cfg.Token, options...)
+	tgBot, err := newTelegramClient(cfg.Token, options...)
 	if err != nil {
-		return fmt.Errorf("create bot: %w", err)
+		return safeError("create bot", cfg.Token, err)
 	}
 	tgBot.Start(ctx)
 	handlerMu.Lock()
@@ -158,21 +172,22 @@ func receiveMessages(parent context.Context, cfg ReceiveConfig, stdout, stderr i
 }
 
 func updateAccepted(update *models.Update, cfg ReceiveConfig, startedAt int64) bool {
-	if update == nil || update.Message == nil {
+	message, _ := messageFromUpdate(update)
+	if message == nil {
 		return false
 	}
-	if !cfg.Sync && int64(update.Message.Date) < startedAt {
+	if !cfg.Sync && int64(message.Date) < startedAt {
 		return false
 	}
-	return cfg.ChatID == 0 || update.Message.Chat.ID == cfg.ChatID
+	return cfg.ChatID == 0 || message.Chat.ID == cfg.ChatID
 }
 
-func handleUpdate(ctx context.Context, tgBot *bot.Bot, update *models.Update, cfg ReceiveConfig, startedAt int64, writer io.Writer) error {
+func handleUpdate(ctx context.Context, tgBot telegramapi.Client, update *models.Update, cfg ReceiveConfig, startedAt int64, writer io.Writer) error {
 	if !updateAccepted(update, cfg, startedAt) {
 		return nil
 	}
-	message := update.Message
-	result := clioutput.Message{Text: message.Text, FileCaption: message.Caption}
+	message, event := messageFromUpdate(update)
+	result := clioutput.Message{Event: event, Text: message.Text, FileCaption: message.Caption}
 	if cfg.PrintChatID || cfg.Output == clioutput.FormatJSONL {
 		result.ChatID = message.Chat.ID
 	}
@@ -189,13 +204,31 @@ func handleUpdate(ctx context.Context, tgBot *bot.Bot, update *models.Update, cf
 	if fileID != "" {
 		file, err := tgBot.GetFile(ctx, &bot.GetFileParams{FileID: fileID})
 		if err != nil {
-			return fmt.Errorf("get Telegram file metadata: %w", err)
+			return safeError("get Telegram file metadata", cfg.Token, err)
 		}
 		// FilePath is safe to log. A downloadable URL would contain the secret bot token.
 		result.FilePath = file.FilePath
 		result.FileName = fileName
 	}
 	return clioutput.Write(writer, cfg.Output, result)
+}
+
+func messageFromUpdate(update *models.Update) (*models.Message, string) {
+	if update == nil {
+		return nil, ""
+	}
+	switch {
+	case update.Message != nil:
+		return update.Message, "message"
+	case update.EditedMessage != nil:
+		return update.EditedMessage, "edited_message"
+	case update.ChannelPost != nil:
+		return update.ChannelPost, "channel_post"
+	case update.EditedChannelPost != nil:
+		return update.EditedChannelPost, "edited_channel_post"
+	default:
+		return nil, ""
+	}
 }
 
 func selectedFile(message *models.Message, cfg ReceiveConfig) (fileID, fileName string) {

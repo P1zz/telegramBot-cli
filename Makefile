@@ -4,16 +4,21 @@ APP_NAME := telegram-cli
 OUTPUT_DIR := builds
 ENTRYPOINT := ./cmd/telegram-cli
 VERSION ?= dev
-LDFLAGS := -s -w -X github.com/P1zz/telegramBot-cli/cmd.version=$(VERSION)
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -s -w -X github.com/P1zz/telegramBot-cli/cmd.version=$(VERSION) -X github.com/P1zz/telegramBot-cli/cmd.commit=$(COMMIT) -X github.com/P1zz/telegramBot-cli/cmd.buildDate=$(BUILD_DATE)
 PLATFORMS := linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darwin/arm64
 
-.PHONY: help test vet fmt-check build release clean generate-config
+.PHONY: help test test-e2e vet fmt-check build release clean generate-config
 
 help: ## Show available commands
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_-]+:.*## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 test: ## Run unit tests
 	go test ./...
+
+test-e2e: ## Run opt-in tests against a dedicated Telegram bot/chat
+	TELEGRAM_CLI_E2E=1 go test -tags=e2e ./cmd
 
 vet: ## Run Go static analysis
 	go vet ./...

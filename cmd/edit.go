@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/P1zz/telegramBot-cli/internal/validation"
@@ -24,10 +25,25 @@ var editCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := loadEditConfig()
+		var err error
+		cfg.Token, err = resolvedToken()
+		if err != nil {
+			return err
+		}
 		if err := cfg.Validate(); err != nil {
 			return err
 		}
-		return editMessage(cmd.Context(), cfg)
+		output, _ := cmd.Flags().GetString("output")
+		if output != "text" && output != "json" {
+			return fmt.Errorf("output must be \"text\" or \"json\"")
+		}
+		if err := editMessage(cmd.Context(), cfg); err != nil {
+			return err
+		}
+		if output == "json" {
+			return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{"edited": true, "chat_id": cfg.ChatID, "message_id": cfg.OldMessageID})
+		}
+		return nil
 	},
 }
 
@@ -35,6 +51,7 @@ func init() {
 	rootCmd.AddCommand(editCmd)
 	editCmd.Flags().IntP("message-id", "i", 0, "ID of the message to edit")
 	editCmd.Flags().StringP("message", "m", "", "replacement message text")
+	editCmd.Flags().StringP("output", "o", "text", "output format: text or json")
 	bindFlag("edit.oldMessageId", editCmd, "message-id")
 	bindFlag("edit.newMessage", editCmd, "message")
 }
@@ -65,15 +82,15 @@ func (cfg EditConfig) Validate() error {
 }
 
 func editMessage(ctx context.Context, cfg EditConfig) error {
-	tgBot, err := bot.New(cfg.Token)
+	tgBot, err := newTelegramClient(cfg.Token)
 	if err != nil {
-		return fmt.Errorf("create bot: %w", err)
+		return safeError("create bot", cfg.Token, err)
 	}
 	_, err = tgBot.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID: cfg.ChatID, MessageID: cfg.OldMessageID, Text: cfg.NewMessage,
 	})
 	if err != nil {
-		return fmt.Errorf("edit message: %w", err)
+		return safeError("edit message", cfg.Token, err)
 	}
 	return nil
 }

@@ -51,6 +51,14 @@ func TestUpdateAccepted(t *testing.T) {
 	}
 }
 
+func TestMessageFromUpdate(t *testing.T) {
+	message := &models.Message{ID: 9}
+	got, event := messageFromUpdate(&models.Update{EditedChannelPost: message})
+	if got != message || event != "edited_channel_post" {
+		t.Fatalf("got %#v, %q", got, event)
+	}
+}
+
 func TestSelectedFilePrefersPhoto(t *testing.T) {
 	message := &models.Message{
 		Photo:    []models.PhotoSize{{FileID: "small"}, {FileID: "large"}},

@@ -13,6 +13,7 @@ const (
 )
 
 type Message struct {
+	Event       string `json:"event,omitempty"`
 	Date        string `json:"date,omitempty"`
 	ChatID      int64  `json:"chat_id,omitempty"`
 	MessageID   int    `json:"message_id,omitempty"`
@@ -46,6 +47,7 @@ func formatText(message Message) string {
 	}
 
 	appendField("DATE", message.Date)
+	appendField("EVENT", message.Event)
 	if message.ChatID != 0 {
 		appendField("CHAT_ID", fmt.Sprint(message.ChatID))
 	}
