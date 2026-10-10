@@ -1,64 +1,44 @@
 .DEFAULT_GOAL := help
-APPNAME := tgBot
-OUTPUT_DIR := ./builds
-BINARY_ENTRYPOINT := ./telegramBot-cli.go
-LINUX := linux
-WIN := windows
-MAC := darwin
-AMD64 := amd64
-ARM64 := arm64
 
-help list: ## Show available commands with descriptions
-		@echo ""
-		@echo "Available Makefile commands:"
-		@echo "---------------------------------------------"
-#		Searches all Makefiles in top‑level plus included ones
-#		Search for a word (letter plus "-" sign) then a ":" and then a "##"
-#		Set the separator as ": ##"
-#		Print with ANSI escape
-		@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | \
-			awk 'BEGIN {FS = ":.*## "}; \
-			{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
-		@echo "---------------------------------------------"
-		@echo ""
+APP_NAME := telegram-cli
+OUTPUT_DIR := builds
+ENTRYPOINT := ./cmd/telegram-cli
+VERSION ?= dev
+LDFLAGS := -s -w -X github.com/P1zz/telegramBot-cli/cmd.version=$(VERSION)
+PLATFORMS := linux/amd64 linux/arm64 windows/amd64 darwin/amd64 darwin/arm64
 
-release: ## Build for linux, windows and macOS
-	make -s generate-conf
-	make -s build-linux-amd64
-	make -s build-linux-arm64
-	make -s build-win-amd64
-	make -s build-macos-amd64
-	make -s build-macos-arm64
+.PHONY: help test vet fmt-check build release clean generate-config
 
-generate-conf: ## Generate the config template
-# 	Get the README.md file
-#	Read the toml section
-#	Create the file and write the config
-	@cat 	./README.md | \
-			awk '/^```toml$$/{on=1; next} /^```$$/{on=0} \
-			on{print}' > $(OUTPUT_DIR)/config.toml
+help: ## Show available commands
+	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_-]+:.*## / {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build-linux-amd64: ## Build for linux-amd64
-	GOARCH=$(AMD64) GOOS=$(LINUX) CGO_ENABLED=0 \
-	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(AMD64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(AMD64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(AMD64)_hash.txt
+test: ## Run unit tests
+	go test ./...
 
-build-linux-arm64: ## Build for linux-arm64
-	GOARCH=$(ARM64) GOOS=$(LINUX) CGO_ENABLED=0 \
-	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(ARM64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(ARM64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(LINUX)_$(ARM64)_hash.txt
+vet: ## Run Go static analysis
+	go vet ./...
 
-build-win-amd64: ## Build for windows-amd64
-	GOARCH=$(AMD64) GOOS=$(WIN) CGO_ENABLED=0 \
-	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(WIN)_$(AMD64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(WIN)_$(AMD64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(WIN)_$(AMD64)_hash.txt
+fmt-check: ## Check Go formatting
+	@test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)
 
-build-macos-amd64: ## Build for macos-amd64
-	GOARCH=$(AMD64) GOOS=$(MAC) CGO_ENABLED=0 \
-	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(AMD64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(AMD64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(AMD64)_hash.txt
+build: ## Build for the current platform
+	@mkdir -p $(OUTPUT_DIR)
+	go build -trimpath -ldflags "$(LDFLAGS)" -o $(OUTPUT_DIR)/$(APP_NAME) $(ENTRYPOINT)
 
-build-macos-arm64: ## Build for macos-arm64
-	GOARCH=$(ARM64) GOOS=$(MAC) CGO_ENABLED=0 \
-	go build -o $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(ARM64) $(BINARY_ENTRYPOINT)
-	@sha256sum $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(ARM64) | awk -F ' ' '{print $$1}' > $(OUTPUT_DIR)/$(APPNAME)_$(MAC)_$(ARM64)_hash.txt
+release: clean generate-config ## Build release binaries and SHA-256 checksums
+	@set -e; \
+	for platform in $(PLATFORMS); do \
+		os=$${platform%/*}; arch=$${platform#*/}; extension=""; \
+		if [ "$$os" = windows ]; then extension=".exe"; fi; \
+		name="$(APP_NAME)_$${os}_$${arch}$${extension}"; \
+		echo "Building $$name"; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o "$(OUTPUT_DIR)/$$name" $(ENTRYPOINT); \
+		sha256sum "$(OUTPUT_DIR)/$$name" > "$(OUTPUT_DIR)/$$name.sha256"; \
+	done
+
+generate-config: ## Generate example config from the README
+	@mkdir -p $(OUTPUT_DIR)
+	@awk '/^```toml$$/{on=1; next} /^```$$/{if(on){exit}} on{print}' README.md > $(OUTPUT_DIR)/config.example.toml
+
+clean: ## Remove generated builds
+	@rm -rf -- $(OUTPUT_DIR)

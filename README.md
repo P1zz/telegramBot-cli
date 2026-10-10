@@ -1,126 +1,177 @@
-[![Telegram][TELEGRAM_badge]][TELEGRAM_url] [![Bash][BASH_badge]][BASH_URL] [![GO][GO_badge]][GO_url] [![License CC0][LICENSE_badge]][LICENSE_url]
+# telegramBot-cli
 
-# Brief
-A CLI tool for interacting on telegram as a bot written in golang
+[![CI](https://github.com/P1zz/telegramBot-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/P1zz/telegramBot-cli/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![License: CC0](https://img.shields.io/badge/license-CC0--1.0-blue)](LICENSE)
 
-- [Brief](#brief)
-- [Overview](#overview)
-- [Build](#build)
-- [Usage](#usage)
-- [Template config](#template-config)
-- [Roadmap](#roadmap)
-- [License](#license)
+`telegramBot-cli` exposes common Telegram Bot API operations as shell-friendly commands. It can send, receive, edit, and delete messages without requiring a dedicated bot application.
 
-# Overview
-This tool is designed to allow easy integration of telegram BOT functionality from shell scripts. <br>
-Built With:
-* Written entirely in [GO][GO_url]
-* [Telegram library](https://github.com/go-telegram/bot) for interacting with the API.
-* [Cobra framework](https://github.com/spf13/cobra) to manage CLI inputs.
-* [Viper framework](https://github.com/spf13/viper) to manage config.
+## Features
 
-# Build
-```go
-go build telegramBot-cli.go
-```
+- Send text, images, and videos, including captions, spoilers, replies, and MarkdownV2.
+- Receive text and media metadata continuously, for a fixed duration, or for a fixed message count.
+- Produce escaped text output or machine-readable JSON Lines.
+- Edit and delete messages.
+- Read options from flags, environment variables, or a TOML config file.
+- Shut down cleanly on Ctrl+C and termination signals.
 
-# Usage
-Hint: All of the commands has ```--help``` parameter.
+## Requirements
+
+- Go 1.26 or newer to build from source.
+- A Telegram bot token created with [BotFather](https://core.telegram.org/bots/features#botfather).
+- A chat ID where the bot is allowed to perform the requested operation.
+
+Treat the bot token like a password. Do not commit `config.toml`, print the token in logs, or pass it directly on a shared machine where command lines can be inspected. The environment variable is the safest default.
+
+## Installation
+
+Build the current version:
+
 ```bash
-telegramBot-cli [ send | receive | edit | delete ]  parameters...
+git clone https://github.com/P1zz/telegramBot-cli.git
+cd telegramBot-cli
+go build -o telegram-cli ./cmd/telegram-cli
 ```
-# Template config
-The default path is ./ and the name is config.toml but you can specify both later.
+
+Or use the Makefile:
+
+```bash
+make test
+make build
+./builds/telegram-cli version
+```
+
+## Quick start
+
+Export the token so it is not repeated in every command:
+
+```bash
+export TELEGRAM_CLI_TOKEN='123456:replace-with-your-token'
+```
+
+Send a message:
+
+```bash
+telegram-cli send --chat-id 123456789 --message 'Deployment completed'
+```
+
+Send an image and print the resulting message ID:
+
+```bash
+telegram-cli send \
+  --chat-id 123456789 \
+  --image \
+  --file ./diagram.png \
+  --message 'Current architecture' \
+  --print-message-id
+```
+
+Receive the next message as JSON Lines:
+
+```bash
+telegram-cli receive --counter 1 --output jsonl
+```
+
+Edit and delete a message:
+
+```bash
+telegram-cli edit --chat-id 123456789 --message-id 42 --message 'Corrected text'
+telegram-cli delete --chat-id 123456789 --message-id 42
+```
+
+Run `telegram-cli --help` or `telegram-cli <command> --help` for the complete flag reference.
+
+## Configuration
+
+The default config path is `./config.toml`. Select another file with `--config` or `-C`. A missing default file is allowed.
+
 ```toml
-token = "YourTelegramBotToken"
-chatId = 1234567890
+# Prefer TELEGRAM_CLI_TOKEN instead of storing the token here.
+chatId = 123456789
 
 [send]
-message = "Message"
+message = "Hello from telegramBot-cli"
 markdownV2 = false
 fileHasSpoiler = false
-getTheMessageId = false
-filePath = "path/to/image.jpg"
-fileTimeout	= 10 #Timeout in seconds for sending a file
-fileIsImage	= false
-fileIsVideo	= false
-replyChatID	= 0
+printMessageID = false
+filePath = ""
+fileTimeout = 60
+fileIsImage = false
+fileIsVideo = false
+replyChatID = 0
 replyMessageID = 0
 
 [receive]
-counter = 0 #Numer of messages to receive, leave blank or set 0 for continuous receiving 
-timeout = 0 #Time in second of the receive timeout, leave blank or set 0 for continuous receiving 
-sync = false #Sync old messages sended while the bot was not running
+counter = 0
+timeout = 0
+sync = false
+output = "text"
 printChatId = true
 printMessageId = true
-#Mutually exclusive
-printTimestampUnix = true
-printTimestampHuman = false
-#URLs to get the actual received files
-printPhotoUrl = false
-printFileUrl = false
-printAudioUrl = false
+printTimestampUnix = false
+printTimestampHuman = true
+printPhotoPath = false
+printFilePath = false
+printAudioPath = false
 
 [edit]
-oldMessageId = 123
-newMessage = "NewMessage!"
+oldMessageId = 0
+newMessage = ""
 
 [delete]
-messageId = 123
+messageId = 0
 ```
 
-# Roadmap
-- [x] Send
-    - [x] Message
-        - [x] With markdown V2
-        - [x] Print the ID of the message
-        - [x] With spoiler
-        - [ ] Without ringtone sound
-        - [ ] Private message (Not forwardable)
-    - [x] Image
-        - [x] With spoiler
-    - [x] Video
-        - [x] With spoiler
-    - [ ] Audio
-    - [ ] Voice
-    - [ ] File
-    - [x] Reply
-        - [x] Same chat
-        - [x] Other chat
-- [x] Receive
-    - [x] Text
-    - [x] Audio/Voice
-    - [x] Photo
-    - [x] Files
-    - [ ] User defined separator
-    - [x] Receive n messages
-    - [x] Receive messages within a timeout
-    - [x] Receive messages continuously
-    - [x] Sync messages received while offline
-    - [x] Discard received while offline
-    - [x] Receive from a specific chat
-    - [x] Receive from all chat
-    - [x] Get the message id
-    - [x] Get the message time
-        - [x] Unix
-        - [x] Human Readable
-- [x] Delete
-    - [x]  With message Id
-- [x] Edit
-    - [x] Text
-- [ ] Generate a template config
+Configuration precedence is:
 
-# License
-telegramBot-cli repo is under CC0 1.0.
+1. Command-line flags.
+2. Environment variables.
+3. TOML configuration.
+4. Built-in defaults.
 
-[GO_badge]: https://img.shields.io/badge/Go-00ADD8?logo=Go&logoColor=white&style=for-the-badge
-[GO_url]: https://go.dev 
+Environment variables start with `TELEGRAM_CLI_`. Dots become underscores; for example, `receive.timeout` maps to `TELEGRAM_CLI_RECEIVE_TIMEOUT`.
 
-[LICENSE_badge]: https://img.shields.io/npm/l/cc-md?color=blue&style=for-the-badge
-[LICENSE_url]: https://creativecommons.org/public-domain/cc0/
+## Receive output
 
-[BASH_badge]: https://img.shields.io/badge/Bash-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white
-[BASH_URL]: https://wikipedia.org/wiki/Bash
+Text output retains the shell-friendly field format. Pipes, backslashes, and line breaks inside values are escaped:
 
-[TELEGRAM_badge]: https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white
-[TELEGRAM_URL]: https://core.telegram.org/
+```text
+|DATE:2026-07-22T14:30:00+02:00|CHAT_ID:123456789|MESSAGE_ID:42|TEXT:hello\|world|
+```
+
+For scripts, `--output jsonl` is recommended:
+
+```json
+{"chat_id":123456789,"message_id":42,"text":"hello | world"}
+```
+
+Media options return Telegram's `file_path`, not a complete download URL. Telegram download URLs contain the bot token and are therefore unsafe to print to logs.
+
+By default, `receive` ignores queued messages older than the command startup time. Use `--sync` to include them. Use `--chat-id 0` or omit the flag to receive from every chat.
+
+## Development
+
+```bash
+make fmt-check
+make test
+make vet
+```
+
+Create cross-platform release binaries with checksums:
+
+```bash
+make release VERSION=1.0.0
+```
+
+The command layer lives in `cmd/`, while reusable validation and output formatting live in `internal/`. Unit tests cover validation, receive filtering and media selection, and both output formats. CI runs formatting, race-enabled tests, vet, and a build.
+
+## Roadmap
+
+- Send audio, voice messages, and generic files.
+- Add notification and content-protection options.
+- Support a configurable text separator while preserving JSON Lines as the stable automation format.
+- Generate a documented config template directly from the CLI.
+
+## License
+
+This project is released under [CC0 1.0](LICENSE).

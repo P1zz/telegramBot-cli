@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
+
+	"github.com/P1zz/telegramBot-cli/internal/validation"
 
 	"github.com/go-telegram/bot"
 	"github.com/spf13/cobra"
@@ -12,86 +12,60 @@ import (
 )
 
 type DeleteConfig struct {
-	token     string
-	chatId    int
-	messageId int
+	Token     string
+	ChatID    int64
+	MessageID int
 }
 
-var deleteTextCmd = &cobra.Command{
+var deleteCmd = &cobra.Command{
 	Use:   "delete",
-	Short: "Delete message",
-	Long:  "Delete a message",
-	//Link the validation function to the validateArgsDelete
-	Args: validateArgsDelete,
-	//Link the function with the capabilities of returning an error
-	Run: deleteMessage,
+	Short: "Delete a message",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg := loadDeleteConfig()
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
+		return deleteMessage(cmd.Context(), cfg)
+	},
 }
 
 func init() {
-	rootCmd.AddCommand(deleteTextCmd)
-
-	deleteTextCmd.Flags().StringP("token", "t", "", "Token from bot fathers")
-	deleteTextCmd.Flags().IntP("chatId", "c", 0, "ID of the chat, leave blank or set 0 if you want to listen all chats")
-	deleteTextCmd.Flags().IntP("messageId", "i", 0, "ID of the message you wan't to delete")
-
-	viper.BindPFlag("token", deleteTextCmd.Flags().Lookup("token"))
-	viper.BindPFlag("chatId", deleteTextCmd.Flags().Lookup("chatId"))
-	viper.BindPFlag("delete.messageId", deleteTextCmd.Flags().Lookup("messageId"))
+	rootCmd.AddCommand(deleteCmd)
+	deleteCmd.Flags().IntP("message-id", "i", 0, "ID of the message to delete")
+	bindFlag("delete.messageId", deleteCmd, "message-id")
 }
 
-func validateArgsDelete(cmd *cobra.Command, args []string) error {
-
-	cfg := DeleteConfig{
-		token:     viper.GetString("token"),
-		chatId:    viper.GetInt("chatId"),
-		messageId: viper.GetInt("delete.messageId"),
+func loadDeleteConfig() DeleteConfig {
+	return DeleteConfig{
+		Token: viper.GetString("token"), ChatID: viper.GetInt64("chatId"),
+		MessageID: viper.GetInt("delete.messageId"),
 	}
-
-	//Validate the token
-	if cfg.token == "" {
-		return fmt.Errorf("No token provided")
-	}
-
-	//Validate the chat ID
-	if cfg.chatId != 0 && len(strconv.Itoa(cfg.chatId)) != 9 {
-		return fmt.Errorf("Wrong chat ID provided")
-	}
-
-	//No need to validate the message ID
-
-	//Send config into the context
-	cmd.SetContext(context.WithValue(cmd.Context(), DeleteConfig{}, cfg))
-
-	return nil
 }
 
-func deleteMessage(cmd *cobra.Command, args []string) {
+func (cfg DeleteConfig) Validate() error {
+	if err := validation.Token(cfg.Token); err != nil {
+		return err
+	}
+	if err := validation.RequiredChatID(cfg.ChatID); err != nil {
+		return err
+	}
+	return validation.MessageID(cfg.MessageID)
+}
 
-	cfg := cmd.Context().Value(DeleteConfig{}).(DeleteConfig)
-
-	//Create a context
-	bgCtx := context.Background()
-
-	//Create the bot
-	tgBot, err := bot.New(cfg.token)
+func deleteMessage(ctx context.Context, cfg DeleteConfig) error {
+	tgBot, err := bot.New(cfg.Token)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while creating the bot instance\n")
-		os.Exit(1)
+		return fmt.Errorf("create bot: %w", err)
 	}
-
-	//Populate parameters
-	parameters := &bot.DeleteMessageParams{
-		ChatID:    cfg.chatId,
-		MessageID: cfg.messageId,
+	deleted, err := tgBot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+		ChatID: cfg.ChatID, MessageID: cfg.MessageID,
+	})
+	if err != nil {
+		return fmt.Errorf("delete message: %w", err)
 	}
-
-	//Delete message
-	res, err := tgBot.DeleteMessage(bgCtx, parameters)
-	if !res && err != nil {
-		fmt.Fprintf(os.Stderr, "Error while deleting text message\n")
-		os.Exit(2)
+	if !deleted {
+		return fmt.Errorf("Telegram did not delete message %d", cfg.MessageID)
 	}
-
-	//Close context
-	bgCtx.Done()
+	return nil
 }

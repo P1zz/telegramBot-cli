@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
+
+	"github.com/P1zz/telegramBot-cli/internal/validation"
 
 	"github.com/go-telegram/bot"
 	"github.com/spf13/cobra"
@@ -12,96 +12,68 @@ import (
 )
 
 type EditConfig struct {
-	token        string
-	chatId       int
-	newMessage   string
-	oldMessageId int
+	Token        string
+	ChatID       int64
+	NewMessage   string
+	OldMessageID int
 }
 
-var editTextCmd = &cobra.Command{
+var editCmd = &cobra.Command{
 	Use:   "edit",
-	Short: "Edit message",
-	Long:  "Edit a text message",
-	//Link the validation function to the validateArgsEdit
-	Args: validateArgsEdit,
-	//Link the function with the capabilities of returning an error
-	Run: editMessage,
+	Short: "Edit a text message",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg := loadEditConfig()
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
+		return editMessage(cmd.Context(), cfg)
+	},
 }
 
 func init() {
-	rootCmd.AddCommand(editTextCmd)
-
-	editTextCmd.Flags().StringP("token", "t", "", "Token from bot fathers")
-	editTextCmd.Flags().IntP("chatId", "c", 0, "ID of the chat, leave blank or set 0 if you want to listen all chats")
-	editTextCmd.Flags().IntP("oldMessageId", "i", 0, "ID of the message you wan't to edit")
-	editTextCmd.Flags().StringP("newMessage", "m", "", "Text of the new message")
-
-	viper.BindPFlag("token", editTextCmd.Flags().Lookup("token"))
-	viper.BindPFlag("chatId", editTextCmd.Flags().Lookup("chatId"))
-	viper.BindPFlag("edit.newMessage", editTextCmd.Flags().Lookup("newMessage"))
-	viper.BindPFlag("edit.oldMessageId", editTextCmd.Flags().Lookup("oldMessageId"))
+	rootCmd.AddCommand(editCmd)
+	editCmd.Flags().IntP("message-id", "i", 0, "ID of the message to edit")
+	editCmd.Flags().StringP("message", "m", "", "replacement message text")
+	bindFlag("edit.oldMessageId", editCmd, "message-id")
+	bindFlag("edit.newMessage", editCmd, "message")
 }
 
-func validateArgsEdit(cmd *cobra.Command, args []string) error {
-
-	cfg := EditConfig{
-		token:        viper.GetString("token"),
-		chatId:       viper.GetInt("chatId"),
-		newMessage:   viper.GetString("edit.newMessage"),
-		oldMessageId: viper.GetInt("edit.oldMessageId"),
+func loadEditConfig() EditConfig {
+	return EditConfig{
+		Token:        viper.GetString("token"),
+		ChatID:       viper.GetInt64("chatId"),
+		NewMessage:   viper.GetString("edit.newMessage"),
+		OldMessageID: viper.GetInt("edit.oldMessageId"),
 	}
+}
 
-	//Validate the token
-	if cfg.token == "" {
-		return fmt.Errorf("No token provided")
+func (cfg EditConfig) Validate() error {
+	if err := validation.Token(cfg.Token); err != nil {
+		return err
 	}
-
-	//Validate the chat ID
-	if cfg.chatId != 0 && len(strconv.Itoa(cfg.chatId)) != 9 {
-		return fmt.Errorf("Wrong chat ID provided")
+	if err := validation.RequiredChatID(cfg.ChatID); err != nil {
+		return err
 	}
-
-	//Validate the text
-	if cfg.newMessage == "" {
-		return fmt.Errorf("New message not provided")
+	if err := validation.MessageID(cfg.OldMessageID); err != nil {
+		return err
 	}
-
-	//No need to validate the message ID
-
-	//Send config into the context
-	cmd.SetContext(context.WithValue(cmd.Context(), EditConfig{}, cfg))
-
+	if cfg.NewMessage == "" {
+		return fmt.Errorf("new message is required")
+	}
 	return nil
 }
 
-func editMessage(cmd *cobra.Command, args []string) {
-
-	cfg := cmd.Context().Value(EditConfig{}).(EditConfig)
-
-	//Create a context
-	bgCtx := context.Background()
-
-	//Create the bot
-	tgBot, err := bot.New(cfg.token)
+func editMessage(ctx context.Context, cfg EditConfig) error {
+	tgBot, err := bot.New(cfg.Token)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while creating the bot instance\n")
-		os.Exit(1)
+		return fmt.Errorf("create bot: %w", err)
 	}
-
-	//Populate parameters
-	parameters := &bot.EditMessageTextParams{
-		ChatID:    cfg.chatId,
-		MessageID: cfg.oldMessageId,
-		Text:      cfg.newMessage,
-	}
-
-	//Edit message
-	_, err = tgBot.EditMessageText(bgCtx, parameters)
+	_, err = tgBot.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID: cfg.ChatID, MessageID: cfg.OldMessageID, Text: cfg.NewMessage,
+	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while editing text message\n")
-		os.Exit(2)
+		return fmt.Errorf("edit message: %w", err)
 	}
-
-	//Close context
-	bgCtx.Done()
+	return nil
 }

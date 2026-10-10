@@ -2,10 +2,15 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
+	"io"
 	"strconv"
+	"sync"
 	"time"
+
+	clioutput "github.com/P1zz/telegramBot-cli/internal/output"
+	"github.com/P1zz/telegramBot-cli/internal/validation"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -14,248 +19,197 @@ import (
 )
 
 type ReceiveConfig struct {
-	token               string
-	chatId              int
-	counter             int
-	timeout             int
-	sync                bool
-	printChatId         bool
-	printMessageId      bool
-	printTimestampUnix  bool
-	printTimestampHuman bool
-	printPhotoUrl       bool
-	printFileUrl        bool
-	printAudioUrl       bool
+	Token               string
+	ChatID              int64
+	Counter             int
+	Timeout             int
+	Sync                bool
+	PrintChatID         bool
+	PrintMessageID      bool
+	PrintTimestampUnix  bool
+	PrintTimestampHuman bool
+	PrintPhotoPath      bool
+	PrintFilePath       bool
+	PrintAudioPath      bool
+	Output              string
 }
 
-var receiveTextCmd = &cobra.Command{
+var receiveCmd = &cobra.Command{
 	Use:   "receive",
-	Short: "Receive message with text",
-	Long:  "Receive a message as bot with the pattern below\n|DATA|CHAT_ID|MESSAGE_ID|URL|FILE_NAME|FILE_CAPTION|TEXT|",
-	//Link the validation function to the receiveTextCmd
-	Args: validateArgsReceive,
-	//Link the function with the capabilities of returning an error
-	Run: receiveMessage,
+	Short: "Receive Telegram messages",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg := loadReceiveConfig()
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
+		return receiveMessages(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
+	},
 }
 
 func init() {
-	rootCmd.AddCommand(receiveTextCmd)
+	rootCmd.AddCommand(receiveCmd)
+	flags := receiveCmd.Flags()
+	flags.IntP("counter", "n", 0, "stop after receiving this many messages (0 means unlimited)")
+	flags.IntP("timeout", "w", 0, "stop after this many seconds (0 means no timeout)")
+	flags.BoolP("sync", "s", false, "include queued messages sent before startup")
+	flags.Bool("print-chat-id", false, "include the chat ID in text output")
+	flags.Bool("print-message-id", false, "include the message ID in text output")
+	flags.Bool("print-timestamp-unix", false, "include the message time as a Unix timestamp")
+	flags.Bool("print-timestamp-human", false, "include the message time in RFC3339 format")
+	flags.Bool("print-photo-path", false, "include Telegram's photo file path")
+	flags.Bool("print-file-path", false, "include Telegram's document file path")
+	flags.Bool("print-audio-path", false, "include Telegram's audio or voice file path")
+	flags.StringP("output", "o", clioutput.FormatText, "output format: text or jsonl")
 
-	receiveTextCmd.Flags().StringP("token", "t", "", "Token from bot fathers")
-	receiveTextCmd.Flags().IntP("chatId", "c", 0, "ID of the chat, leave blank or set 0 if you want to listen all chats")
-	receiveTextCmd.Flags().IntP("counter", "n", 0, "Numer of messages to receive, leave blank or set 0 for continuous receiving")
-	receiveTextCmd.Flags().IntP("timeout", "w", 0, "Time in second of the receive timeout, leave blank or set 0 for continuous receiving")
-	//TODO document cron logic for sync
-	receiveTextCmd.Flags().BoolP("sync", "s", false, "Sync old messages sended while the bot was not running")
-	receiveTextCmd.Flags().BoolP("printChatId", "r", false, "Print the chat ID")
-	receiveTextCmd.Flags().BoolP("printMessageId", "M", false, "Print the message ID of each message")
-	receiveTextCmd.Flags().BoolP("printTimestampUnix", "U", false, "Print the datetime UNIX")
-	receiveTextCmd.Flags().BoolP("printTimestampHuman", "H", false, "Print the datetime human readable")
-	receiveTextCmd.Flags().BoolP("printPhotoUrl", "P", false, "Print the photo url")
-	receiveTextCmd.Flags().BoolP("printFileUrl", "F", false, "Print the file url")
-	receiveTextCmd.Flags().BoolP("printAudioUrl", "A", false, "Print the audio url")
-
-	viper.BindPFlag("token", receiveTextCmd.Flags().Lookup("token"))
-	viper.BindPFlag("chatId", receiveTextCmd.Flags().Lookup("chatId"))
-	viper.BindPFlag("receive.counter", receiveTextCmd.Flags().Lookup("counter"))
-	viper.BindPFlag("receive.timeout", receiveTextCmd.Flags().Lookup("timeout"))
-	viper.BindPFlag("receive.sync", receiveTextCmd.Flags().Lookup("sync"))
-	viper.BindPFlag("receive.printChatId", receiveTextCmd.Flags().Lookup("printChatId"))
-	viper.BindPFlag("receive.printMessageId", receiveTextCmd.Flags().Lookup("printMessageId"))
-	viper.BindPFlag("receive.printTimestampUnix", receiveTextCmd.Flags().Lookup("printTimestampUnix"))
-	viper.BindPFlag("receive.printTimestampHuman", receiveTextCmd.Flags().Lookup("printTimestampHuman"))
-	viper.BindPFlag("receive.printPhotoUrl", receiveTextCmd.Flags().Lookup("printPhotoUrl"))
-	viper.BindPFlag("receive.printFileUrl", receiveTextCmd.Flags().Lookup("printFileUrl"))
-	viper.BindPFlag("receive.printAudioUrl", receiveTextCmd.Flags().Lookup("printAudioUrl"))
+	bindFlag("receive.counter", receiveCmd, "counter")
+	bindFlag("receive.timeout", receiveCmd, "timeout")
+	bindFlag("receive.sync", receiveCmd, "sync")
+	bindFlag("receive.printChatId", receiveCmd, "print-chat-id")
+	bindFlag("receive.printMessageId", receiveCmd, "print-message-id")
+	bindFlag("receive.printTimestampUnix", receiveCmd, "print-timestamp-unix")
+	bindFlag("receive.printTimestampHuman", receiveCmd, "print-timestamp-human")
+	bindFlag("receive.printPhotoPath", receiveCmd, "print-photo-path")
+	bindFlag("receive.printFilePath", receiveCmd, "print-file-path")
+	bindFlag("receive.printAudioPath", receiveCmd, "print-audio-path")
+	bindFlag("receive.output", receiveCmd, "output")
 }
 
-func validateArgsReceive(cmd *cobra.Command, args []string) error {
+func loadReceiveConfig() ReceiveConfig {
+	return ReceiveConfig{
+		Token: viper.GetString("token"), ChatID: viper.GetInt64("chatId"),
+		Counter: viper.GetInt("receive.counter"), Timeout: viper.GetInt("receive.timeout"),
+		Sync: viper.GetBool("receive.sync"), PrintChatID: viper.GetBool("receive.printChatId"),
+		PrintMessageID:      viper.GetBool("receive.printMessageId"),
+		PrintTimestampUnix:  viper.GetBool("receive.printTimestampUnix"),
+		PrintTimestampHuman: viper.GetBool("receive.printTimestampHuman"),
+		PrintPhotoPath:      viper.GetBool("receive.printPhotoPath"),
+		PrintFilePath:       viper.GetBool("receive.printFilePath"),
+		PrintAudioPath:      viper.GetBool("receive.printAudioPath"),
+		Output:              viper.GetString("receive.output"),
+	}
+}
 
-	cfg := ReceiveConfig{
-		token:               viper.GetString("token"),
-		chatId:              viper.GetInt("chatId"),
-		counter:             viper.GetInt("receive.counter"),
-		timeout:             viper.GetInt("receive.timeout"),
-		sync:                viper.GetBool("receive.sync"),
-		printChatId:         viper.GetBool("receive.printChatId"),
-		printMessageId:      viper.GetBool("receive.printMessageId"),
-		printTimestampUnix:  viper.GetBool("receive.printTimestampUnix"),
-		printTimestampHuman: viper.GetBool("receive.printTimestampHuman"),
-		printPhotoUrl:       viper.GetBool("receive.printPhotoUrl"),
-		printFileUrl:        viper.GetBool("receive.printFileUrl"),
-		printAudioUrl:       viper.GetBool("receive.printAudioUrl"),
+func (cfg ReceiveConfig) Validate() error {
+	if err := validation.Token(cfg.Token); err != nil {
+		return err
+	}
+	if err := validation.NonNegative("counter", cfg.Counter); err != nil {
+		return err
+	}
+	if err := validation.NonNegative("timeout", cfg.Timeout); err != nil {
+		return err
+	}
+	if cfg.PrintTimestampUnix && cfg.PrintTimestampHuman {
+		return errors.New("Unix and human-readable timestamps are mutually exclusive")
+	}
+	return clioutput.ValidateFormat(cfg.Output)
+}
+
+func receiveMessages(parent context.Context, cfg ReceiveConfig, stdout, stderr io.Writer) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	if cfg.Timeout > 0 {
+		var timeoutCancel context.CancelFunc
+		ctx, timeoutCancel = context.WithTimeout(ctx, time.Duration(cfg.Timeout)*time.Second)
+		defer timeoutCancel()
 	}
 
-	//Validate the token
-	if cfg.token == "" {
-		return fmt.Errorf("No token provided")
+	startedAt := time.Now().Unix()
+	var received int
+	var handlerErr error
+	var handlerMu sync.Mutex
+
+	options := []bot.Option{
+		bot.WithErrorsHandler(func(err error) {
+			fmt.Fprintf(stderr, "Telegram polling error: %v\n", err)
+		}),
+		bot.WithDefaultHandler(func(handlerCtx context.Context, tgBot *bot.Bot, update *models.Update) {
+			handlerMu.Lock()
+			defer handlerMu.Unlock()
+			if err := handleUpdate(handlerCtx, tgBot, update, cfg, startedAt, stdout); err != nil {
+				handlerErr = err
+				cancel()
+				return
+			}
+			if updateAccepted(update, cfg, startedAt) && cfg.Counter > 0 {
+				received++
+				if received >= cfg.Counter {
+					cancel()
+				}
+			}
+		}),
 	}
 
-	//Validate the chat ID
-	if cfg.chatId != 0 && len(strconv.Itoa(cfg.chatId)) != 9 {
-		return fmt.Errorf("Wrong chat ID provided")
+	tgBot, err := bot.New(cfg.Token, options...)
+	if err != nil {
+		return fmt.Errorf("create bot: %w", err)
 	}
-
-	//No need to validate the messageCounter, sync, printChatId, printMessageId, printTimestampUnix, printTimestampHuman
-
-	//Send config into the context
-	cmd.SetContext(context.WithValue(cmd.Context(), ReceiveConfig{}, cfg))
-
+	tgBot.Start(ctx)
+	handlerMu.Lock()
+	defer handlerMu.Unlock()
+	if handlerErr != nil {
+		return handlerErr
+	}
+	if err := parent.Err(); err != nil {
+		return err
+	}
 	return nil
 }
 
-func receiveMessage(cmd *cobra.Command, args []string) {
+func updateAccepted(update *models.Update, cfg ReceiveConfig, startedAt int64) bool {
+	if update == nil || update.Message == nil {
+		return false
+	}
+	if !cfg.Sync && int64(update.Message.Date) < startedAt {
+		return false
+	}
+	return cfg.ChatID == 0 || update.Message.Chat.ID == cfg.ChatID
+}
 
-	cfg := cmd.Context().Value(ReceiveConfig{}).(ReceiveConfig)
-
-	//Create a context
-	bgCtx, cancel := context.WithCancel(context.Background())
-
-	//If required setup timeout timer
-	if cfg.timeout != 0 {
-		time.AfterFunc(time.Duration(cfg.timeout)*time.Second, func() {
-			cancel()
-		})
+func handleUpdate(ctx context.Context, tgBot *bot.Bot, update *models.Update, cfg ReceiveConfig, startedAt int64, writer io.Writer) error {
+	if !updateAccepted(update, cfg, startedAt) {
+		return nil
+	}
+	message := update.Message
+	result := clioutput.Message{Text: message.Text, FileCaption: message.Caption}
+	if cfg.PrintChatID || cfg.Output == clioutput.FormatJSONL {
+		result.ChatID = message.Chat.ID
+	}
+	if cfg.PrintMessageID || cfg.Output == clioutput.FormatJSONL {
+		result.MessageID = message.ID
+	}
+	if cfg.PrintTimestampHuman {
+		result.Date = time.Unix(int64(message.Date), 0).Format(time.RFC3339)
+	} else if cfg.PrintTimestampUnix {
+		result.Date = strconv.Itoa(message.Date)
 	}
 
-	//Create the handler
-	defaultHandler := func(ctx context.Context, tgBot *bot.Bot, update *models.Update, cancelFunc context.CancelFunc) {
-
-		counter := 0
-
-		//No message exist
-		if update.Message == nil {
-			return
+	fileID, fileName := selectedFile(message, cfg)
+	if fileID != "" {
+		file, err := tgBot.GetFile(ctx, &bot.GetFileParams{FileID: fileID})
+		if err != nil {
+			return fmt.Errorf("get Telegram file metadata: %w", err)
 		}
-
-		//If don't want to sync discard old message
-		if int64(update.Message.Date) < time.Now().Unix() && !cfg.sync {
-			return
-		}
-
-		//Listen only for the specified chat ID
-		if update.Message.Chat.ID != int64(cfg.chatId) && cfg.chatId != 0 {
-			return
-		}
-		//Create an empty message that will be filled by the functions
-		outputMessage := "|"
-
-		//Append the Date and Time
-		if cfg.printTimestampHuman {
-			outputMessage += fmt.Sprintf("DATE:%s|", time.Unix(int64(update.Message.Date), 0))
-		} else if cfg.printTimestampUnix {
-			outputMessage += fmt.Sprintf("DATE:%d|", update.Message.Date)
-		}
-
-		//Append Chat ID
-		if cfg.printChatId {
-			outputMessage += fmt.Sprintf("CHAT_ID:%d|", update.Message.Chat.ID)
-		}
-
-		//Append Message ID
-		if cfg.printChatId {
-			outputMessage += fmt.Sprintf("MESSAGE_ID:%d|", update.Message.ID)
-		}
-
-		if cfg.printPhotoUrl || cfg.printFileUrl || cfg.printAudioUrl {
-			var fileID string
-			var fileName string
-
-			fileIsPresent := false
-
-			if cfg.printPhotoUrl {
-				if update.Message.Photo != nil && cfg.printPhotoUrl {
-					fileIsPresent = true
-					//Get highest resolution photo
-					fileID = update.Message.Photo[len(update.Message.Photo)-1].FileID
-					fileName = ""
-				}
-			}
-
-			if cfg.printFileUrl {
-				if update.Message.Document != nil && cfg.printFileUrl {
-					fileIsPresent = true
-					fileID = update.Message.Document.FileID
-					fileName = update.Message.Document.FileName
-				}
-			}
-
-			if cfg.printAudioUrl {
-				if update.Message.Audio != nil {
-					fileIsPresent = true
-					fileID = update.Message.Audio.FileID
-					fileName = update.Message.Audio.FileName
-				} else if update.Message.Voice != nil {
-					fileIsPresent = true
-					fileID = update.Message.Voice.FileID
-					fileName = ""
-				}
-			}
-
-			if fileIsPresent {
-				// Get file info from Telegram API
-				file, err := tgBot.GetFile(ctx, &bot.GetFileParams{FileID: fileID})
-				if err != nil {
-					fmt.Println("Error file not valid")
-					return
-				}
-
-				//Append image path
-				outputMessage += fmt.Sprintf("URL:https://api.telegram.org/file/bot%s/%s|", cfg.token, file.FilePath)
-
-				if fileName != "" {
-					outputMessage += "FILE_NAME:" + fileName + "|"
-				}
-
-				outputMessage += "FILE_CAPTION:" + update.Message.Caption + "|"
-
-			}
-		}
-
-		//Receive message
-		if update.Message.Text != "" { //Handle text message
-			//Append message
-			outputMessage += "TEXT:" + update.Message.Text + "|"
-		}
-
-		//Print out complete message
-		fmt.Println(outputMessage)
-
-		//Increase the counter only if user want a cuntdown
-		if cfg.counter != 0 {
-			counter++
-		}
-
-		//Check if counter has reach the user value
-		if counter >= cfg.counter && cfg.counter != 0 {
-			//Close the bot
-			tgBot.Close(ctx)
-
-			//Cancel the Context
-			cancelFunc()
-		}
+		// FilePath is safe to log. A downloadable URL would contain the secret bot token.
+		result.FilePath = file.FilePath
+		result.FileName = fileName
 	}
+	return clioutput.Write(writer, cfg.Output, result)
+}
 
-	opts := []bot.Option{
-		//Link the handler to the bot
-		bot.WithDefaultHandler(func(ctx context.Context, b *bot.Bot, update *models.Update) {
-			//Pass the param from the default handler + the context cancellation function
-			defaultHandler(ctx, b, update, cancel)
-		}),
-		//Redirect bot library/API errors
-		bot.WithErrorsHandler(func(err error) {}),
+func selectedFile(message *models.Message, cfg ReceiveConfig) (fileID, fileName string) {
+	if cfg.PrintPhotoPath && len(message.Photo) > 0 {
+		return message.Photo[len(message.Photo)-1].FileID, ""
 	}
-
-	//Create the bot
-	tgBot, err := bot.New(cfg.token, opts...)
-	if nil != err {
-		fmt.Fprintf(os.Stderr, "Error while creating the bot instance\n")
-		os.Exit(1)
+	if cfg.PrintFilePath && message.Document != nil {
+		return message.Document.FileID, message.Document.FileName
 	}
-
-	//Start the bot
-	tgBot.Start(bgCtx)
-
-	//Close context
-	bgCtx.Done()
+	if cfg.PrintAudioPath && message.Audio != nil {
+		return message.Audio.FileID, message.Audio.FileName
+	}
+	if cfg.PrintAudioPath && message.Voice != nil {
+		return message.Voice.FileID, ""
+	}
+	return "", ""
 }

@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
+
+	"github.com/P1zz/telegramBot-cli/internal/validation"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -15,236 +16,175 @@ import (
 )
 
 type SendConfig struct {
-	token           string
-	chatId          int
-	message         string
-	isMarkdownV2    bool
-	fileHasSpoiler  bool
-	getTheMessageId bool
-	filePath        string
-	fileTimeout     int
-	fileIsImage     bool
-	fileIsVideo     bool
-	replyChatID     int
-	replyMessageID  int
+	Token          string
+	ChatID         int64
+	Message        string
+	MarkdownV2     bool
+	FileHasSpoiler bool
+	PrintMessageID bool
+	FilePath       string
+	FileTimeout    int
+	FileIsImage    bool
+	FileIsVideo    bool
+	ReplyChatID    int64
+	ReplyMessageID int
 }
 
 var sendCmd = &cobra.Command{
 	Use:   "send",
-	Short: "Send message with text or image",
-	Long:  "Send a message in a chat as bot with text or an image",
-	Args:  validateArgsSend,
-	//Link the validation function to the sendTextCmd
-	Run: sendMessage,
-	//Link the function with the capabilities of returning an error
+	Short: "Send a text message, image, or video",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg := loadSendConfig()
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
+		message, err := sendMessage(cmd.Context(), cfg)
+		if err != nil {
+			return err
+		}
+		if cfg.PrintMessageID {
+			fmt.Fprintf(cmd.OutOrStdout(), "MESSAGE_ID:%d\n", message.ID)
+		}
+		return nil
+	},
 }
 
 func init() {
 	rootCmd.AddCommand(sendCmd)
 
-	sendCmd.Flags().StringP("token", "t", "", "Token from bot fathers")
-	sendCmd.Flags().IntP("chatId", "c", 0, "Your chat ID")
-	sendCmd.Flags().StringP("messageText", "m", "", "Message text to send")
-	sendCmd.Flags().StringP("filePath", "p", "", "Path of the image/video to send")
-	sendCmd.Flags().IntP("fileTimeout", "T", 60, "Timeout in seconds for sending a file")
-	sendCmd.Flags().BoolP("pathIsImage", "i", false, "The path is an image to send")
-	sendCmd.Flags().BoolP("pathIsVideo", "v", false, "The path is a video to send")
-	sendCmd.Flags().BoolP("fileHasSpoiler", "H", false, "The file is send with hidden preview")
-	sendCmd.Flags().IntP("replyChatId", "x", 0, "Chat id you want to reply")
-	sendCmd.Flags().IntP("replyMessageId", "y", 0, "Message id you want to reply")
-	sendCmd.Flags().BoolP("markDownV2", "2", false, "Message text is parsed in markdown v2")
-	sendCmd.Flags().BoolP("printMessageId", "M", false, "Print message id of your message")
+	flags := sendCmd.Flags()
+	flags.StringP("message", "m", "", "message text or media caption")
+	flags.StringP("file", "p", "", "path of the image or video to send")
+	flags.IntP("file-timeout", "T", 60, "file upload timeout in seconds")
+	flags.BoolP("image", "i", false, "send the file as an image")
+	flags.BoolP("video", "v", false, "send the file as a video")
+	flags.Bool("spoiler", false, "hide the media preview behind a spoiler")
+	flags.Int64("reply-chat-id", 0, "chat ID containing the message to reply to")
+	flags.Int("reply-message-id", 0, "message ID to reply to")
+	flags.Bool("markdown-v2", false, "parse the message as Telegram MarkdownV2")
+	flags.Bool("print-message-id", false, "print the sent message ID")
 
-	viper.BindPFlag("token", sendCmd.Flags().Lookup("token"))
-	viper.BindPFlag("chatId", sendCmd.Flags().Lookup("chatId"))
-	viper.BindPFlag("send.message", sendCmd.Flags().Lookup("messageText"))
-	viper.BindPFlag("send.markdownV2", sendCmd.Flags().Lookup("markDownV2"))
-	viper.BindPFlag("send.fileHasSpoiler", sendCmd.Flags().Lookup("fileHasSpoiler"))
-	viper.BindPFlag("send.getTheMessageId", sendCmd.Flags().Lookup("printMessageId"))
-	viper.BindPFlag("send.filePath", sendCmd.Flags().Lookup("filePath"))
-	viper.BindPFlag("send.fileTimeout", sendCmd.Flags().Lookup("fileTimeout"))
-	viper.BindPFlag("send.fileIsImage", sendCmd.Flags().Lookup("pathIsImage"))
-	viper.BindPFlag("send.fileIsVideo", sendCmd.Flags().Lookup("pathIsVideo"))
-	viper.BindPFlag("send.replyChatID", sendCmd.Flags().Lookup("replyChatId"))
-	viper.BindPFlag("send.replyMessageID", sendCmd.Flags().Lookup("replyMessageId"))
+	bindFlag("send.message", sendCmd, "message")
+	bindFlag("send.filePath", sendCmd, "file")
+	bindFlag("send.fileTimeout", sendCmd, "file-timeout")
+	bindFlag("send.fileIsImage", sendCmd, "image")
+	bindFlag("send.fileIsVideo", sendCmd, "video")
+	bindFlag("send.fileHasSpoiler", sendCmd, "spoiler")
+	bindFlag("send.replyChatID", sendCmd, "reply-chat-id")
+	bindFlag("send.replyMessageID", sendCmd, "reply-message-id")
+	bindFlag("send.markdownV2", sendCmd, "markdown-v2")
+	bindFlag("send.printMessageID", sendCmd, "print-message-id")
 }
 
-func validateArgsSend(cmd *cobra.Command, args []string) error {
+func bindFlag(key string, command *cobra.Command, name string) {
+	cobra.CheckErr(viper.BindPFlag(key, command.Flags().Lookup(name)))
+}
 
-	cfg := SendConfig{
-		token:           viper.GetString("token"),
-		chatId:          viper.GetInt("chatId"),
-		message:         viper.GetString("send.message"),
-		isMarkdownV2:    viper.GetBool("send.markdownV2"),
-		fileHasSpoiler:  viper.GetBool("send.fileHasSpoiler"),
-		getTheMessageId: viper.GetBool("send.getTheMessageId"),
-		filePath:        viper.GetString("send.filePath"),
-		fileTimeout:     viper.GetInt("send.fileTimeout"),
-		fileIsImage:     viper.GetBool("send.fileIsImage"),
-		fileIsVideo:     viper.GetBool("send.fileIsVideo"),
-		replyChatID:     viper.GetInt("send.replyChatID"),
-		replyMessageID:  viper.GetInt("send.replyMessageID"),
+func loadSendConfig() SendConfig {
+	return SendConfig{
+		Token:          viper.GetString("token"),
+		ChatID:         viper.GetInt64("chatId"),
+		Message:        viper.GetString("send.message"),
+		MarkdownV2:     viper.GetBool("send.markdownV2"),
+		FileHasSpoiler: viper.GetBool("send.fileHasSpoiler"),
+		PrintMessageID: viper.GetBool("send.printMessageID"),
+		FilePath:       viper.GetString("send.filePath"),
+		FileTimeout:    viper.GetInt("send.fileTimeout"),
+		FileIsImage:    viper.GetBool("send.fileIsImage"),
+		FileIsVideo:    viper.GetBool("send.fileIsVideo"),
+		ReplyChatID:    viper.GetInt64("send.replyChatID"),
+		ReplyMessageID: viper.GetInt("send.replyMessageID"),
 	}
+}
 
-	//Validate the token
-	if cfg.token == "" {
-		return fmt.Errorf("No token provided")
+func (cfg SendConfig) Validate() error {
+	if err := validation.Token(cfg.Token); err != nil {
+		return err
 	}
-
-	//Validate the chat ID
-	if cfg.chatId == 0 || len(strconv.Itoa(cfg.chatId)) != 9 {
-		return fmt.Errorf("Wrong chat ID provided")
+	if err := validation.RequiredChatID(cfg.ChatID); err != nil {
+		return err
 	}
-
-	//There should be something to send
-	if cfg.message == "" && (!cfg.fileIsImage && !cfg.fileIsVideo) {
-		return fmt.Errorf("You should provide at least a message or a file")
+	if cfg.Message == "" && !cfg.FileIsImage && !cfg.FileIsVideo {
+		return errors.New("a message, image, or video is required")
 	}
-
-	//If there is a file to send
-	if cfg.fileIsImage || cfg.fileIsVideo {
-		//Check that are not both a video and an image
-		if cfg.fileIsImage && cfg.fileIsVideo {
-			return fmt.Errorf("Images and videos are mutually exclusive")
-			//Check the file exist
-		} else if _, err := os.Stat(cfg.filePath); errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("Wrong path provided")
+	if cfg.FileIsImage && cfg.FileIsVideo {
+		return errors.New("image and video modes are mutually exclusive")
+	}
+	if cfg.FileIsImage || cfg.FileIsVideo {
+		if err := validation.Positive("file timeout", cfg.FileTimeout); err != nil {
+			return err
+		}
+		if err := validation.ReadableRegularFile(cfg.FilePath); err != nil {
+			return err
 		}
 	}
-
-	//Send config into the context
-	cmd.SetContext(context.WithValue(cmd.Context(), SendConfig{}, cfg))
+	if cfg.ReplyChatID != 0 && cfg.ReplyMessageID == 0 {
+		return errors.New("reply message ID is required when reply chat ID is set")
+	}
+	if cfg.ReplyMessageID < 0 {
+		return errors.New("reply message ID must not be negative")
+	}
 	return nil
 }
 
-func sendMessage(cmd *cobra.Command, args []string) {
-
-	cfg := cmd.Context().Value(SendConfig{}).(SendConfig)
-
-	//Create a context
-	bgCtx := context.Background()
-
-	//Create the bot
-	tgBot, err := bot.New(cfg.token)
+func sendMessage(ctx context.Context, cfg SendConfig) (*models.Message, error) {
+	tgBot, err := bot.New(cfg.Token)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while creating the bot instance\n")
-		os.Exit(1)
+		return nil, fmt.Errorf("create bot: %w", err)
 	}
 
-	//Create the return message structure
-	var rtrn *models.Message
-
-	//Create and fill parsing parameters
-	var parsing models.ParseMode
-	if cfg.isMarkdownV2 {
-		parsing = models.ParseModeMarkdown
+	var parseMode models.ParseMode
+	if cfg.MarkdownV2 {
+		parseMode = models.ParseModeMarkdown
 	}
 
-	//If user does no has provided the chat ID use the current one
-	if cfg.replyChatID == 0 {
-		cfg.replyChatID = cfg.chatId
-	}
-
-	//Create and fill reply parameters
-	replyParameters := &models.ReplyParameters{}
-	if cfg.replyChatID != 0 {
-		replyParameters.ChatID = cfg.replyChatID
-		replyParameters.MessageID = cfg.replyMessageID
-	}
-
-	//Send a file
-	if cfg.fileIsImage || cfg.fileIsVideo {
-		//Open image
-		var file *os.File
-		if cfg.filePath != "" {
-			file, err = os.Open(cfg.filePath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Can't open the file.\n")
-				os.Exit(2)
-			}
-		} else {
-			fmt.Fprintf(os.Stderr, "The path to the file was empty.\n")
-			os.Exit(2)
+	var reply *models.ReplyParameters
+	if cfg.ReplyMessageID != 0 {
+		replyChatID := cfg.ReplyChatID
+		if replyChatID == 0 {
+			replyChatID = cfg.ChatID
 		}
+		reply = &models.ReplyParameters{ChatID: replyChatID, MessageID: cfg.ReplyMessageID}
+	}
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.fileTimeout)*time.Second)
-		defer cancel()
-
-		if cfg.fileIsImage {
-			//Create image parameters
-			parameters := &bot.SendPhotoParams{
-				ChatID:          cfg.chatId,
-				Photo:           &models.InputFileUpload{Filename: cfg.filePath, Data: file},
-				Caption:         cfg.message,
-				ReplyParameters: replyParameters,
-				ParseMode:       parsing,
-				HasSpoiler:      cfg.fileHasSpoiler,
-			}
-
-			//Send image
-			rtrn, err = tgBot.SendPhoto(ctx, parameters)
-
-			//Check for errors
-			if err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					fmt.Fprintf(os.Stderr, "Send file request exceeded timeout of %d seconds, try a smaller file or increase -T.\n", cfg.fileTimeout)
-					os.Exit(3)
-				}
-				fmt.Fprintf(os.Stderr, "Error while sending photo.\n")
-				os.Exit(4)
-			}
-		} else if cfg.fileIsVideo {
-			parameters := &bot.SendVideoParams{
-				ChatID:          cfg.chatId,
-				Video:           &models.InputFileUpload{Filename: cfg.filePath, Data: file},
-				Caption:         cfg.message,
-				ReplyParameters: replyParameters,
-				ParseMode:       parsing,
-				HasSpoiler:      cfg.fileHasSpoiler,
-			}
-
-			//Send video
-			rtrn, err = tgBot.SendVideo(ctx, parameters)
-
-			//Check for errors
-			if err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					fmt.Fprintf(os.Stderr, "Send file request exceeded %d timeout of seconds, try a smaller file or increase -T.\n", cfg.fileTimeout)
-					os.Exit(5)
-				}
-				fmt.Fprintf(os.Stderr, "Error while sending video.\n")
-				os.Exit(6)
-			}
-		}
-
-	} else { //Send a message
-		parameters := &bot.SendMessageParams{
-			ChatID:          cfg.chatId,
-			Text:            cfg.message,
-			ReplyParameters: replyParameters,
-			ParseMode:       parsing,
-		}
-
-		//Send the message
-		rtrn, err = tgBot.SendMessage(bgCtx, parameters)
-
-		//Check for errors
+	if !cfg.FileIsImage && !cfg.FileIsVideo {
+		message, err := tgBot.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: cfg.ChatID, Text: cfg.Message, ReplyParameters: reply, ParseMode: parseMode,
+		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error while sending the text message.\n")
-			os.Exit(7)
+			return nil, fmt.Errorf("send message: %w", err)
 		}
+		return message, nil
 	}
 
-	if rtrn == nil {
-		fmt.Fprintf(os.Stderr, "Nothing has been sended...\n")
-		os.Exit(8)
+	file, err := os.Open(cfg.FilePath)
+	if err != nil {
+		return nil, fmt.Errorf("open file %q: %w", cfg.FilePath, err)
 	}
+	defer file.Close()
 
-	//If requested print messsage ID
-	if cfg.getTheMessageId {
-		fmt.Printf("MESSAGE_ID:%d\n", rtrn.ID)
+	uploadCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.FileTimeout)*time.Second)
+	defer cancel()
+	input := &models.InputFileUpload{Filename: cfg.FilePath, Data: file}
+
+	var message *models.Message
+	if cfg.FileIsImage {
+		message, err = tgBot.SendPhoto(uploadCtx, &bot.SendPhotoParams{
+			ChatID: cfg.ChatID, Photo: input, Caption: cfg.Message, ReplyParameters: reply,
+			ParseMode: parseMode, HasSpoiler: cfg.FileHasSpoiler,
+		})
+	} else {
+		message, err = tgBot.SendVideo(uploadCtx, &bot.SendVideoParams{
+			ChatID: cfg.ChatID, Video: input, Caption: cfg.Message, ReplyParameters: reply,
+			ParseMode: parseMode, HasSpoiler: cfg.FileHasSpoiler,
+		})
 	}
-
-	//Close context
-	bgCtx.Done()
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("upload exceeded the %d-second timeout: %w", cfg.FileTimeout, err)
+		}
+		return nil, fmt.Errorf("send media: %w", err)
+	}
+	return message, nil
 }

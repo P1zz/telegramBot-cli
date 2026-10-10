@@ -1,54 +1,67 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-// rootCmd represents the base command when called without any subcommands
+var (
+	configFile string
+	configErr  error
+	version    = "dev"
+)
+
 var rootCmd = &cobra.Command{
-	Use:   "telegram-cli",
-	Short: "CLI tool for interact with telegram",
-	Long:  `With this tool you can interact with telegram api as a bot`,
+	Use:           "telegram-cli",
+	Short:         "Use the Telegram Bot API from the command line",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return configErr
+	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Can't execute root command.\n")
-		os.Exit(2)
-	}
+func Execute(ctx context.Context) error {
+	rootCmd.SetContext(ctx)
+	return rootCmd.Execute()
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("config", "C", "config.toml", "config file")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "C", "config.toml", "path to a TOML config file")
+	rootCmd.PersistentFlags().StringP("token", "t", "", "Telegram bot token")
+	rootCmd.PersistentFlags().Int64P("chat-id", "c", 0, "Telegram chat ID")
 
-	cobra.CheckErr(viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config")))
+	cobra.CheckErr(viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token")))
+	cobra.CheckErr(viper.BindPFlag("chatId", rootCmd.PersistentFlags().Lookup("chat-id")))
 	cobra.OnInitialize(initConfig)
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Print version information",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Fprintln(cmd.OutOrStdout(), version)
+		},
+	})
 }
 
 func initConfig() {
-	cfg := viper.GetString("config")
-
-	if cfg == "" {
-		viper.SetConfigFile("config.toml")
-	} else {
-		viper.SetConfigFile(cfg)
-	}
-
+	viper.SetConfigFile(configFile)
 	viper.SetConfigType("toml")
+	viper.SetEnvPrefix("TELEGRAM_CLI")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			fmt.Fprintf(os.Stderr, "Can't find config file: %s\n", err.Error())
-			os.Exit(1)
+		if errors.Is(err, os.ErrNotExist) && !rootCmd.PersistentFlags().Changed("config") {
+			return
 		}
+		configErr = fmt.Errorf("read config %q: %w", configFile, err)
 	}
-
-	viper.AutomaticEnv()
 }
