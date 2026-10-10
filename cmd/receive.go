@@ -112,7 +112,7 @@ func (cfg ReceiveConfig) Validate() error {
 		return err
 	}
 	if cfg.PrintTimestampUnix && cfg.PrintTimestampHuman {
-		return errors.New("Unix and human-readable timestamps are mutually exclusive")
+		return errors.New("unix and human-readable timestamps are mutually exclusive")
 	}
 	return clioutput.ValidateFormat(cfg.Output)
 }
@@ -133,7 +133,7 @@ func receiveMessages(parent context.Context, cfg ReceiveConfig, stdout, stderr i
 
 	options := []bot.Option{
 		bot.WithErrorsHandler(func(err error) {
-			fmt.Fprintf(stderr, "Telegram polling error: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "Telegram polling error: %v\n", err)
 		}),
 		bot.WithDefaultHandler(func(handlerCtx context.Context, tgBot *bot.Bot, update *models.Update) {
 			handlerMu.Lock()

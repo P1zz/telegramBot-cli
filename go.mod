@@ -1,11 +1,11 @@
 module github.com/P1zz/telegramBot-cli
 
-go 1.26 //Minimum required version for build or run
+go 1.27 //Minimum required version for build or run
 
-toolchain go1.26.2 //Actual version developer use to develop and build
+toolchain go1.27.2 //Actual version developer use to develop and build
 
 require (
-	github.com/go-telegram/bot v1.20.0
+	github.com/go-telegram/bot v1.27.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 )

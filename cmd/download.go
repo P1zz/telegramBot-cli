@@ -57,7 +57,7 @@ func downloadFile(ctx context.Context, token, filePath, outputPath string, stdou
 	if err != nil {
 		return safeError("download file", token, err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("download file: Telegram returned %s", response.Status)
 	}

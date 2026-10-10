@@ -82,7 +82,7 @@ func deleteMessage(ctx context.Context, cfg DeleteConfig) error {
 		return safeError("delete message", cfg.Token, err)
 	}
 	if !deleted {
-		return fmt.Errorf("Telegram did not delete message %d", cfg.MessageID)
+		return fmt.Errorf("telegram did not delete message %d", cfg.MessageID)
 	}
 	return nil
 }

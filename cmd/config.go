@@ -48,14 +48,14 @@ var configInitCmd = &cobra.Command{
 			return fmt.Errorf("create config: %w", err)
 		}
 		if _, err = file.WriteString(configTemplate); err != nil {
-			file.Close()
+			_ = file.Close()
 			return fmt.Errorf("write config: %w", err)
 		}
 		if err = file.Close(); err != nil {
 			return err
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), path)
-		return nil
+		_, err = fmt.Fprintln(cmd.OutOrStdout(), path)
+		return err
 	},
 }
 

@@ -72,7 +72,9 @@ var sendCmd = &cobra.Command{
 		if cfg.Output == "json" {
 			return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{"message_id": message.ID, "chat_id": cfg.ChatID})
 		} else if cfg.PrintMessageID {
-			fmt.Fprintf(cmd.OutOrStdout(), "MESSAGE_ID:%d\n", message.ID)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "MESSAGE_ID:%d\n", message.ID); err != nil {
+				return err
+			}
 		}
 		return nil
 	},
@@ -243,7 +245,7 @@ func sendMessage(ctx context.Context, cfg SendConfig) (*models.Message, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open file %q: %w", cfg.FilePath, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	uploadCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.FileTimeout)*time.Second)
 	defer cancel()

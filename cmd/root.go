@@ -60,11 +60,12 @@ func init() {
 		Use:   "version",
 		Short: "Print version information",
 		Args:  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if info, ok := debug.ReadBuildInfo(); ok && version == "dev" && info.Main.Version != "(devel)" {
 				version = info.Main.Version
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "telegram-cli %s\ncommit: %s\nbuilt: %s\ngo: %s\n", version, commit, buildDate, runtime.Version())
+			_, err := fmt.Fprintf(cmd.OutOrStdout(), "telegram-cli %s\ncommit: %s\nbuilt: %s\ngo: %s\n", version, commit, buildDate, runtime.Version())
+			return err
 		},
 	})
 }
