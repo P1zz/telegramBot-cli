@@ -19,7 +19,7 @@
 
 ## Requirements
 
-- Go 1.26 or newer to build from source.
+- Go 1.27 or newer to build from source (the project toolchain is Go 1.27.2).
 - A Telegram bot token created with [BotFather](https://core.telegram.org/bots/features#botfather).
 - A chat ID where the bot is allowed to perform the requested operation.
 
@@ -182,7 +182,13 @@ The `event` field distinguishes `message`, `edited_message`, `channel_post`, and
 make fmt-check
 make test
 make vet
+make vuln-check
 ```
+
+`make vuln-check` runs Go's `govulncheck` with tests and the `e2e` build tag
+included, and shows detailed traces. It checks for known vulnerabilities across
+the module dependencies. It requires Go 1.27 or newer and downloads the pinned
+scanner version automatically when needed.
 
 Run the opt-in Telegram lifecycle test only with a dedicated test bot and chat. It creates, edits, and deletes a temporary message:
 
